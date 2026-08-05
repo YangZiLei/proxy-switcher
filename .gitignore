@@ -1,0 +1,14 @@
+# personal config (contains local paths)
+config.json
+
+# marker files should never live in the repo
+*.proxy-on
+
+# OS / editor noise
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+
+# local assistant workspace data (never publish)
+.workbuddy/
