@@ -54,8 +54,12 @@ foreach ($p in $paths) {
         Remove-NetFirewallRule -ErrorAction SilentlyContinue
 
     # Antigravity's local UI only needs loopback inbound access.
+    # IPv4 loopback only: some Windows builds reject '::1' as LocalAddress
+    # with "unspecified broadcast, multicast, or loopback IPv6 address",
+    # which aborts the script before any rule is created. The Electron UI
+    # loads 127.0.0.1:<port>, so the IPv4 rule is sufficient.
     New-NetFirewallRule -DisplayName $inboundName -Direction Inbound -Action Allow -Program $p `
-        -Profile Any -LocalAddress @('127.0.0.1', '::1') -RemoteAddress @('127.0.0.1', '::1') `
+        -Profile Any -LocalAddress @('127.0.0.1') -RemoteAddress @('127.0.0.1') `
         -ErrorAction Stop | Out-Null
 
     # The language server still needs outbound access to Google services.
