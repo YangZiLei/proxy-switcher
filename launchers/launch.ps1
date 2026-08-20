@@ -16,6 +16,11 @@
 #     loopback request and white-screens the UI. The
 #     language_server subprocess (a Go binary) honors the
 #     HTTPS_PROXY env vars we set below.
+#     We ALSO set NO_PROXY=127.0.0.1,localhost so the Electron UI's
+#     local page is fetched directly. Injecting HTTPS_PROXY alone makes
+#     Chromium route even loopback requests through the proxy, which
+#     white-screens the UI when the proxy is down and can export
+#     loopback traffic off-host. The subprocess still uses HTTPS_PROXY.
 # ============================================================
 
 param(
@@ -46,6 +51,14 @@ $proxy = $cfg.proxy.url
 if (Test-Path $marker) {
     $env:HTTPS_PROXY = $proxy
     $env:HTTP_PROXY  = $proxy
+    # Exempt loopback so the Electron UI (which loads a LOCAL page at
+    # https://127.0.0.1:<port>) does NOT route that local request through
+    # the proxy. Without this, a not-yet-ready proxy makes the UI fail with
+    # ERR_TIMED_OUT (white screen), and loopback traffic can be exported
+    # off-host via the proxy chain. The language_server subprocess still
+    # reaches the internet through HTTPS_PROXY as intended.
+    $env:NO_PROXY = '127.0.0.1,localhost'
+    $env:no_proxy = '127.0.0.1,localhost'
 }
 
 switch ($Mode) {

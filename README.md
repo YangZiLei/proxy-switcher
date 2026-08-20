@@ -16,7 +16,7 @@
 而 AI 工具们本身又各有各的脾气：
 
 - **opencode**：桌面端核心流量走内置 Node 服务（认 `HTTPS_PROXY` 环境变量）；终端 CLI 也是 Node 进程
-- **Antigravity (agy)**：桌面端是 Electron（Chromium 网络栈**不读环境变量**，只认系统代理/命令行参数）；但真正访问 Google API 的是它 spawn 的 `language_server.exe`（Go 进程，**认环境变量**）
+- **Antigravity (agy)**：桌面端是 Electron（Chromium 网络栈**会读取 `HTTPS_PROXY` 环境变量**，因此本地 UI 页面也会走代理）；真正访问 Google API 的是它 spawn 的 `language_server.exe`（Go 进程，**认环境变量**）。所以注入代理时必须用 `NO_PROXY=127.0.0.1,localhost` 把本地页面排除在外——否则 UI 加载本地 `https://127.0.0.1:<port>` 时也会走代理，代理未就绪即白屏。
 
 所以正确的控制面不是"代理软件怎么配"，而是**在启动每个工具时，按需注入环境变量**。
 
@@ -41,7 +41,7 @@
 - **不写全局环境变量**：开关只影响 opencode / antigravity 两个工具，curl、git、npm、浏览器完全不受影响
 - **标记文件在 `%USERPROFILE%`**：任何用户目录下都生效，不污染项目仓库
 - **只影响新进程**：已打开的终端/应用需重启才生效（进程环境变量机制使然，这也是预期行为）
-- **Electron 桌面端特殊处理**：Antigravity 桌面端**不能**加 `--proxy-server`（会白屏，见上表），只靠环境变量让 `language_server.exe` 走代理；UI 本地页面直连
+- **Electron 桌面端特殊处理**：Antigravity 桌面端**不能**加 `--proxy-server`（会白屏，见上表）；注入 `HTTPS_PROXY` 让 `language_server.exe` 走代理的同时，必须额外注入 `NO_PROXY=127.0.0.1,localhost`，确保 UI 本地页面（`<port>` 为动态端口）直连、不被代理劫持。仅注入 `HTTPS_PROXY` 而漏掉 `NO_PROXY` 同样会导致白屏（代理未就绪时本地页请求超时）
 
 ### 启动器矩阵
 
@@ -103,11 +103,15 @@
 (node:xxxx) electron: Failed to load URL: https://127.0.0.1:<port>/ with error: ERR_CONNECTION_TIMED_OUT
 ```
 
-**这是 Windows 防火墙拦截回环连接，与代理无关**（实测：系统代理开/关、带不带 `--proxy-server` 均复现，且 curl 直连本地端口也超时）。解决：
+**根因（已修复）**：启动器注入 `HTTPS_PROXY` 时若未豁免 localhost，Chromium 会用该代理加载本地 UI 页面 `https://127.0.0.1:<port>`。代理未就绪（`127.0.0.1:7892` 未监听 / 刚启动）时，这条本地请求超时 → 白屏。`launch.ps1` 现已在注入代理的同时设置 `NO_PROXY=127.0.0.1,localhost`，本地页面强制直连，从根上消除此问题。
+
+**仍建议运行一次防火墙规则（双重保障）**：Windows 防火墙默认可能拦截回环入站，导致同样症状。以管理员身份运行一次即可（规则持久，无需每次重跑）：
 
 1. 以管理员身份运行 `scripts/firewall-fix.ps1`（仅为 Antigravity.exe / language_server.exe 创建回环入站和应用出站规则）
 2. 按需在 Windows 防火墙中开启对应网络配置文件；脚本不会修改防火墙总开关
 3. 不要长期关闭防火墙
+
+**排查顺序**：先确认代理是否开着（`Test-NetConnection 127.0.0.1 7892`）；开着仍白屏时再检查防火墙规则是否仍在（`Get-NetFirewallRule -DisplayName "proxy-switcher*"`）。
 
 ### 终端里 token exchange failed / 直连超时
 
