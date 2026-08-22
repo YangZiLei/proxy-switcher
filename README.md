@@ -43,7 +43,8 @@
 - **不写全局环境变量**：开关只影响 opencode / antigravity 两个工具，curl、git、npm、浏览器完全不受影响
 - **标记文件在用户主目录**：任何目录下都生效，不污染项目仓库
 - **只影响新进程**：已打开的终端/应用需重启才生效（进程环境变量机制使然，这也是预期行为）
-- **统一注入 `NO_PROXY=127.0.0.1,localhost`**：`HTTPS_PROXY` 注入后必须豁免回环，否则 Electron UI 加载本地页面也会走代理 → 白屏（详见下方"白屏"章节）
+- **统一注入 `NO_PROXY=127.0.0.1,localhost`**：`HTTPS_PROXY` 注入后必须豁免回环，否则 Electron UI 加载本地页面也会走代理 → 白屏（详见下方"白屏"章节）。默认值如左；两个平台的 `config.json` 都可用 `no_proxy` 键覆盖（缺省时回落到 `127.0.0.1,localhost`）
+- **CLI 注入只作用于子进程**：`opencode-proxy` / `agy-proxy` 用临时环境前缀（zsh）/ try+finally 清理（PowerShell）注入，命令退出后当前终端不会残留代理变量
 
 ## 平台差异（重要）
 
