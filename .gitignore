@@ -1,5 +1,6 @@
 # personal config (contains local paths)
 config.json
+macos/config.json
 
 # marker files should never live in the repo
 *.proxy-on

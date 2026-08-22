@@ -1,0 +1,26 @@
+{
+  "proxy": {
+    "url": "http://127.0.0.1:7892",
+    "comment": "Local proxy (ClashX / Surge / v2rayN / FastLink etc.)"
+  },
+  "no_proxy": "127.0.0.1,localhost",
+  "markers": {
+    "opencode": ".opencode-proxy-on",
+    "antigravity": ".agy-proxy-on",
+    "comment": "Marker files live under $HOME and toggle proxy per tool"
+  },
+  "apps": {
+    "opencode": {
+      "cli": "opencode",
+      "desktop": "/Applications/OpenCode.app/Contents/MacOS/OpenCode",
+      "comment": "CLI binary name on PATH; desktop = Electron app in /Applications"
+    },
+    "antigravity": {
+      "cli": "agy",
+      "desktop": "/Applications/Antigravity.app/Contents/MacOS/Antigravity",
+      "chromiumArgs": "--no-proxy-server",
+      "recoverWhiteScreen": true,
+      "comment": "UI 是 https://127.0.0.1:<port> 回环。language_server(Go) 启动需 ~37s(playwright 404 重试等)，窗口过早加载会 30s 超时白屏；recoverWhiteScreen=true 时启动器等 LS 就绪后经 CDP 重载窗口。chromiumArgs=--no-proxy-server 防御系统 PAC(wpad NXDOMAIN) 劫持 Chromium 回环代理解析。API 流量仍走 language_server(Go, 吃 HTTPS_PROXY env)"
+    }
+  }
+}
