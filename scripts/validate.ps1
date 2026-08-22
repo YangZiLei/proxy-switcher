@@ -1,9 +1,25 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$config = Join-Path $root 'config.example.json'
-Get-Content $config -Raw | ConvertFrom-Json | Out-Null
 
 $errors = @()
+
+function Test-RequiredJsonFields {
+    param([string]$Path, [string]$Label)
+    $cfg = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    $required = @('proxy.url', 'markers.opencode', 'markers.antigravity', 'apps.opencode.cli', 'apps.antigravity.cli')
+    foreach ($key in $required) {
+        $node = $cfg
+        foreach ($seg in $key.Split('.')) { $node = $node.$seg }
+        if ($null -eq $node) { $errors += "$Label: missing required field '$key'" }
+    }
+}
+
+$example = Join-Path $root 'config.example.json'
+if (Test-Path -LiteralPath $example) { Test-RequiredJsonFields $example 'config.example.json' }
+
+$userConfig = Join-Path $root 'config.json'
+if (Test-Path -LiteralPath $userConfig) { Test-RequiredJsonFields $userConfig 'config.json' }
+
 Get-ChildItem $root -Recurse -Filter '*.ps1' | ForEach-Object {
     $tokens = $null
     $parseErrors = $null

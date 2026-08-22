@@ -47,6 +47,7 @@ $cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 $appCfg = $cfg.apps.$App
 $marker = Join-Path $env:USERPROFILE $cfg.markers.$App
 $proxy = $cfg.proxy.url
+$noProxy = if ($cfg.no_proxy) { $cfg.no_proxy } else { '127.0.0.1,localhost' }
 
 if (Test-Path $marker) {
     $env:HTTPS_PROXY = $proxy
@@ -57,8 +58,8 @@ if (Test-Path $marker) {
     # ERR_TIMED_OUT (white screen), and loopback traffic can be exported
     # off-host via the proxy chain. The language_server subprocess still
     # reaches the internet through HTTPS_PROXY as intended.
-    $env:NO_PROXY = '127.0.0.1,localhost'
-    $env:no_proxy = '127.0.0.1,localhost'
+    $env:NO_PROXY = $noProxy
+    $env:no_proxy = $noProxy
 }
 
 switch ($Mode) {

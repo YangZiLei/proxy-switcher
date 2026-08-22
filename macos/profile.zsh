@@ -37,32 +37,26 @@ except Exception:
 PY
 }
 
-_psw_proxy_env() {
-  # Export proxy env vars into the current shell when the marker is present.
-  # Returns 0 if proxy was injected, 1 otherwise.
-  local marker="$1"
+_psw_run_with() {
+  # $1 = marker name; remaining = command + args
+  # 用临时前缀赋值注入 env，只作用于子进程，不 export 进当前会话
+  # （核心承诺：不污染当前终端环境变量）。
+  local marker="$1"; shift
   if [[ ! -f "$PROXY_SWITCHER_CONFIG" ]]; then
     print -u2 "proxy-switcher: 找不到配置文件 $PROXY_SWITCHER_CONFIG"
     return 1
   fi
-  local url no_proxy marker_path
+  local url no_proxy
   url="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "proxy.url")"
   no_proxy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "no_proxy")"
-  marker_path="$HOME/$marker"
   [[ -z "$no_proxy" ]] && no_proxy="127.0.0.1,localhost"
-  if [[ -f "$marker_path" && -n "$url" ]]; then
-    export HTTPS_PROXY="$url" HTTP_PROXY="$url" ALL_PROXY="$url"
-    export NO_PROXY="$no_proxy" no_proxy="$no_proxy"
-    return 0
+  if [[ -f "$HOME/$marker" && -n "$url" ]]; then
+    HTTPS_PROXY="$url" HTTP_PROXY="$url" ALL_PROXY="$url" \
+    NO_PROXY="$no_proxy" no_proxy="$no_proxy" \
+      "$@"
+  else
+    "$@"
   fi
-  return 1
-}
-
-_psw_run_with() {
-  # $1 = marker name; remaining = command + args
-  local marker="$1"; shift
-  _psw_proxy_env "$marker" >/dev/null
-  "$@"
 }
 
 _psw_marker_name() {

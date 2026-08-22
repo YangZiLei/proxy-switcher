@@ -25,6 +25,7 @@ if (-not (Test-Path -LiteralPath $configPath)) {
 $cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 
 $proxy   = $cfg.proxy.url
+$noProxy = if ($cfg.no_proxy) { $cfg.no_proxy } else { '127.0.0.1,localhost' }
 $ocApp   = $cfg.apps.opencode
 $agyApp  = $cfg.apps.antigravity
 $markerOc  = Join-Path $env:USERPROFILE $cfg.markers.opencode
@@ -46,6 +47,11 @@ function Write-StatusLine {
 function Set-ProxyEnv {
     $env:HTTPS_PROXY = $proxy
     $env:HTTP_PROXY  = $proxy
+    # Exempt loopback: options 5/7 Start-Process the Electron desktop,
+    # which loads a LOCAL page (https://127.0.0.1:<port>). Without NO_PROXY,
+    # Chromium routes that local request through the proxy -> white screen.
+    $env:NO_PROXY = $noProxy
+    $env:no_proxy = $noProxy
 }
 
 # ============================================================

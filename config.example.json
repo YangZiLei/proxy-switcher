@@ -3,6 +3,7 @@
     "url": "http://127.0.0.1:7892",
     "comment": "Your local proxy (FastLink / Clash / v2rayN etc.)"
   },
+  "no_proxy": "127.0.0.1,localhost",
   "markers": {
     "opencode": ".opencode-proxy-on",
     "antigravity": ".agy-proxy-on",

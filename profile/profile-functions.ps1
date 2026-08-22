@@ -31,11 +31,27 @@ function Invoke-WithProxySwitch {
         [Parameter(ValueFromRemainingArguments = $true)]$PassedArgs
     )
     $cfg = Read-ProxySwitcherConfig
+    $proxy   = $cfg.proxy.url
+    $noProxy = if ($cfg.no_proxy) { $cfg.no_proxy } else { '127.0.0.1,localhost' }
     if (Test-Path (Join-Path $env:USERPROFILE $Marker)) {
-        $env:HTTPS_PROXY = $cfg.proxy.url
-        $env:HTTP_PROXY  = $cfg.proxy.url
+        # Inject into the child command only, then clean up so the current
+        # terminal session is NOT left with proxy env vars (core promise:
+        # no global/user-level pollution). finally guarantees cleanup even
+        # if the command exits non-zero.
+        $env:HTTPS_PROXY = $proxy
+        $env:HTTP_PROXY  = $proxy
+        $env:NO_PROXY    = $noProxy
+        $env:no_proxy    = $noProxy
+        try {
+            & $CommandPath @PassedArgs
+        }
+        finally {
+            Remove-Item Env:HTTPS_PROXY,Env:HTTP_PROXY,Env:NO_PROXY,Env:no_proxy -ErrorAction SilentlyContinue
+        }
     }
-    & $CommandPath @PassedArgs
+    else {
+        & $CommandPath @PassedArgs
+    }
 }
 
 # agy (Antigravity CLI) - binary lives in %LOCALAPPDATA%\agy\bin\agy.EXE

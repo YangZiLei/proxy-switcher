@@ -26,6 +26,12 @@
 _psw_recover_white_screen() {
   local app_name="$1"
   command -v node >/dev/null 2>&1 || { print -u2 "警告: 未找到 node，跳过白屏自动恢复（可手动 Cmd+R）"; return 0; }
+  # 全局 WebSocket 需 Node >= 21（22 稳定）。旧版会 ReferenceError 静默失败，
+  # 提前检测，避免恢复逻辑空转 ~90s 后才提示。
+  if ! node -e 'process.exit(typeof WebSocket === "function" ? 0 : 1)' >/dev/null 2>&1; then
+    print -u2 "警告: 需要 Node >= 21（用于 CDP 重载），当前 $(node --version 2>/dev/null || echo 未知)。请手动 Cmd+R 恢复"
+    return 0
+  fi
 
   local lsport=""
   local i

@@ -111,7 +111,7 @@ gen_icns oc "OC" "0.04" "0.55" "0.40" "0.20" "0.83" "0.61" && launch_one "OpenCo
 gen_icns ag "AG" "0.44" "0.24" "0.90" "0.65" "0.54" "0.99" && launch_one "Antigravity 代理启动" "antigravity" "ag" || launch_one "Antigravity 代理启动" "antigravity" ""
 rm -f /tmp/psw-icon-oc.icns /tmp/psw-icon-ag.icns
 
-echo "==> 4/4 ${2:+挂载 zsh 函数}"
+echo "==> 4/4 ${1:+挂载 zsh 函数}"
 if [[ "$1" == "--with-zshrc" ]]; then
   line=". \"\$HOME/.config/proxy-switcher/profile.zsh\""
   if ! grep -qF "$HOME/.config/proxy-switcher/profile.zsh" "$HOME/.zshrc" 2>/dev/null; then

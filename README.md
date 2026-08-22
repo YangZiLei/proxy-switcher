@@ -99,7 +99,7 @@ electron: Failed to load URL: https://127.0.0.1:<port>/ with error: ERR_CONNECTI
 
 ## macOS 安装与使用
 
-零依赖（zsh + python3 + curl + node，均为 macOS 开发环境自带）。**首次只需一条命令**：
+零依赖（zsh + python3 + curl，均为 macOS/Xcode CLT 自带）。**白屏自动恢复需要 Node ≥ 21**（用于 CDP 重载；Xcode CLT 不带 node，若缺失或版本过低，启动器会提示并优雅降级为手动 `Cmd+R`）。**首次只需一条命令**：
 
 ```bash
 cd macos
@@ -146,6 +146,8 @@ electron: Failed to load URL: https://127.0.0.1:<port>/ with error: ERR_TIMED_OU
 - 直接用 `--no-proxy-server` 启动的 Antigravity 桌面端，其 UI 与 language_server 不受影响
 
 **白屏仍在？**：等 LS 就绪后按 `Cmd+R` 手动重载；或确认代理客户端端口与 `config.json` 的 `proxy.url` 一致。
+
+> **单实例说明（跨平台差异）**：Electron 是单实例——同一应用二次启动会把请求转发给旧进程后退出。macOS 启动器已自动处理（杀旧实例 → 等完全退出 → 再拉起），所以切换代理状态后双击启动器即生效；**Windows 版未做自动处理**，切换代理后需要先手动退出应用再重新启动（或用菜单 [5]/[7] 重启）。
 
 ---
 
