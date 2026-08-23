@@ -13,18 +13,18 @@
 **macOS**（zsh 零依赖，唯一前置：本地代理客户端已运行）：
 
 ```bash
-curl -fsSL <repo>/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/install.sh | sh
 # 想同时获得 CLI 注入函数（opencode-proxy / agy-proxy），加 --with-zshrc：
-curl -fsSL <repo>/install.sh | sh -s -- --with-zshrc
+curl -fsSL https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/install.sh | sh -s -- --with-zshrc
 ```
 
 **Windows**（PowerShell 7，先按下方说明配好 `config.json`）：
 
 ```powershell
-iwr <repo>/install.ps1 | iex
+iwr https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/scripts/install.ps1 | iex
 ```
 
-也可以直接 clone 本仓库后本地安装：`./install.sh`（macOS）/ `pwsh -File scripts/install.ps1`（Windows）。安装器幂等，重复执行安全。
+也可以直接 clone 本仓库后本地安装：`./install.sh`（macOS）/ `pwsh -File scripts/install.ps1`（Windows）。安装器幂等，重复执行安全。fork 部署时可用 `PROXY_SWITCHER_REPO_URL` 环境变量覆盖默认克隆地址。
 
 ## 为什么是唯一方案 / Why it's the only fix
 
