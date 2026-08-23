@@ -1,12 +1,34 @@
 # proxy-switcher
 
+> **唯一解决桌面端 Electron AI 工具（Antigravity / opencode 桌面版）代理白屏的开源方案。**
+> The only open-source fix for white-screen on desktop Electron AI tools (Antigravity / opencode desktop).
+>
 > 为 AI 编程工具（opencode / Antigravity）提供**按工具独立**的代理开关，不污染全局环境变量。
+> Per-tool proxy toggle for AI coding tools — with zero global-env pollution.
 >
 > 跨平台：**Windows**（PowerShell 7） + **macOS**（zsh 零依赖）
 
-## 缘由（为什么需要它）
+## 一行命令安装 / One-line install
 
-使用国外模型服务时，经常遇到 403 地域封锁（`This model is not available in your region`），需要用代理访问。常见的解决方案各有痛点：
+**macOS**（zsh 零依赖，唯一前置：本地代理客户端已运行）：
+
+```bash
+curl -fsSL <repo>/install.sh | sh
+# 想同时获得 CLI 注入函数（opencode-proxy / agy-proxy），加 --with-zshrc：
+curl -fsSL <repo>/install.sh | sh -s -- --with-zshrc
+```
+
+**Windows**（PowerShell 7，先按下方说明配好 `config.json`）：
+
+```powershell
+iwr <repo>/install.ps1 | iex
+```
+
+也可以直接 clone 本仓库后本地安装：`./install.sh`（macOS）/ `pwsh -File scripts/install.ps1`（Windows）。安装器幂等，重复执行安全。
+
+## 为什么是唯一方案 / Why it's the only fix
+
+现有方案都不解决"桌面端 Electron AI 工具 + 代理"这个组合问题：
 
 | 方案 | 问题 |
 |------|------|
@@ -22,7 +44,7 @@
 
 所以正确的控制面不是"代理软件怎么配"，而是**在启动每个工具时，按需注入环境变量**。
 
-## 设计思路
+## 设计思路 / Design
 
 核心是一个很简单的机制：**标记文件（marker file）+ 启动器读取**。
 
@@ -46,7 +68,7 @@
 - **统一注入 `NO_PROXY=127.0.0.1,localhost`**：`HTTPS_PROXY` 注入后必须豁免回环，否则 Electron UI 加载本地页面也会走代理 → 白屏（详见下方"白屏"章节）。默认值如左；两个平台的 `config.json` 都可用 `no_proxy` 键覆盖（缺省时回落到 `127.0.0.1,localhost`）
 - **CLI 注入只作用于子进程**：`opencode-proxy` / `agy-proxy` 用临时环境前缀（zsh）/ try+finally 清理（PowerShell）注入，命令退出后当前终端不会残留代理变量
 
-## 平台差异（重要）
+## 平台差异 / Platform differences
 
 两个平台的关键机制相同（marker + 注入），但**桌面端启动方式**和**白屏根因**完全不同：
 
@@ -156,6 +178,7 @@ electron: Failed to load URL: https://127.0.0.1:<port>/ with error: ERR_TIMED_OU
 
 ```
 proxy-switcher/
+├── install.sh                     # 顶层一键安装器（检测平台 → 调平台安装器 → 打印验证方式）
 ├── switcher.bat / switcher.ps1     # Windows 菜单（pwsh）
 ├── config.example.json             # Windows 配置模板
 ├── launchers/                      # Windows 桌面启动器
@@ -168,6 +191,8 @@ proxy-switcher/
 │   ├── launch.sh                   # macOS 桌面启动器（注入 + 白屏恢复）
 │   ├── profile.zsh                 # macOS CLI 注入函数
 │   └── config.example.json         # macOS 配置模板
+├── docs/
+│   └── lint-checklist.md           # PowerShell 侧人工 lint 核对清单（无 pwsh 环境时）
 └── README.md
 ```
 
