@@ -15,6 +15,10 @@
 
 : "${PROXY_SWITCHER_CONFIG:=$HOME/.config/proxy-switcher/config.json}"
 
+# launch.sh 与本脚本同目录安装；按脚本自身位置解析，不硬编码
+# ~/.config/proxy-switcher，自定义目录布局（仓库内直接运行等）也能找到。
+SCRIPT_DIR="${0:A:h}"
+
 _psw_config_get() {
   python3 - "$1" "$2" <<'PY'
 import json, sys
@@ -110,7 +114,7 @@ while true; do
       print ""
       print "正在启动 OpenCode 桌面端..."
       print ""
-      "$HOME/.config/proxy-switcher/launch.sh" opencode
+      "$SCRIPT_DIR/launch.sh" opencode
       print ""
       read -r "?按回车返回"
       ;;
@@ -118,7 +122,7 @@ while true; do
       print ""
       print "正在启动 Antigravity 桌面端..."
       print ""
-      "$HOME/.config/proxy-switcher/launch.sh" antigravity
+      "$SCRIPT_DIR/launch.sh" antigravity
       print ""
       read -r "?按回车返回"
       ;;
