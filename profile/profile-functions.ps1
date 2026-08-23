@@ -34,10 +34,15 @@ function Invoke-WithProxySwitch {
     $proxy   = $cfg.proxy.url
     $noProxy = if ($cfg.no_proxy) { $cfg.no_proxy } else { '127.0.0.1,localhost' }
     if (Test-Path (Join-Path $env:USERPROFILE $Marker)) {
-        # Inject into the child command only, then clean up so the current
-        # terminal session is NOT left with proxy env vars (core promise:
-        # no global/user-level pollution). finally guarantees cleanup even
-        # if the command exits non-zero.
+        # Inject into the child command only. Pre-existing values are saved and
+        # restored afterwards, so a proxy the user had already exported in this
+        # session survives the wrapper (previously it was deleted); variables
+        # that were not set stay unset. finally guarantees restoration even if
+        # the command exits non-zero.
+        $names = 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'no_proxy'
+        $saved = @{}
+        foreach ($n in $names) { $saved[$n] = [Environment]::GetEnvironmentVariable($n) }
+
         $env:HTTPS_PROXY = $proxy
         $env:HTTP_PROXY  = $proxy
         $env:NO_PROXY    = $noProxy
@@ -46,7 +51,10 @@ function Invoke-WithProxySwitch {
             & $CommandPath @PassedArgs
         }
         finally {
-            Remove-Item Env:HTTPS_PROXY,Env:HTTP_PROXY,Env:NO_PROXY,Env:no_proxy -ErrorAction SilentlyContinue
+            foreach ($n in $names) {
+                # $null value removes the process-level variable.
+                [Environment]::SetEnvironmentVariable($n, $saved[$n])
+            }
         }
     }
     else {
