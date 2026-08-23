@@ -1,4 +1,5 @@
 #!/bin/zsh
+# shellcheck shell=bash
 # ============================================================
 # proxy-switcher — macOS 桌面端启动器
 # 按标记注入代理环境变量后启动桌面应用 (OpenCode / Antigravity)
@@ -146,10 +147,12 @@ if [[ -n "$marker" && -f "$HOME/$marker" ]]; then
   if is_running; then
     print "正在退出旧实例 $BIN_NAME ..."
     kill_main
+    # shellcheck disable=SC2168 # zsh 允许顶层 local(作用域=当前脚本),非函数内告警
     local waited=0
     while is_running && (( waited < 12 )); do sleep 1; ((waited++)); done
     if is_running; then
       print "旧实例未及时退出，强制结束..."
+      # shellcheck disable=SC2168 # 同上:zsh 顶层 local 合法
       local op; op="$(main_pid)"
       [[ -n "$op" ]] && kill -9 "$op" >/dev/null 2>&1
       sleep 1
@@ -169,7 +172,9 @@ fi
 # 后台启动桌面端（继承当前 shell 的环境变量）。
 # chromiumArgs（如 --no-proxy-server）用于规避系统 PAC 劫持 Chromium
 # 的回环代理解析（Antigravity 白屏问题）；需按词拆分传参。
+# shellcheck disable=SC2168 # zsh 顶层 local 合法
 local -a chrome=()
+# shellcheck disable=SC2206 # ${=var} 是 zsh 显式按词拆分语法(等价 bash 未加引号展开)
 [[ -n "$chromium_args" ]] && chrome=(${=chromium_args})
 nohup "$desktop" "${chrome[@]}" >/dev/null 2>&1 &
 disown 2>/dev/null || true

@@ -1,4 +1,5 @@
 #!/bin/zsh
+# shellcheck shell=bash
 # ============================================================
 # proxy-switcher for macOS — 主菜单
 # opencode / Antigravity (agy) 按工具独立代理开关

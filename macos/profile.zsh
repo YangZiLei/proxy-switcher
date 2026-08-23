@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # ============================================================
 # proxy-switcher for macOS — 可选的 zsh 函数（可选安装）
 #
@@ -51,6 +52,7 @@ _psw_run_with() {
   no_proxy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "no_proxy")"
   [[ -z "$no_proxy" ]] && no_proxy="127.0.0.1,localhost"
   if [[ -f "$HOME/$marker" && -n "$url" ]]; then
+    # shellcheck disable=SC2097,SC2098 # 有意同时注入 NO_PROXY 与 no_proxy(部分工具只认小写),右值来自 local 变量而非环境
     HTTPS_PROXY="$url" HTTP_PROXY="$url" ALL_PROXY="$url" \
     NO_PROXY="$no_proxy" no_proxy="$no_proxy" \
       "$@"
@@ -68,7 +70,7 @@ _psw_marker_name() {
 function opencode-proxy() {
   local marker
   marker="$(_psw_marker_name "opencode")"
-  [[ -n "$marker" ]] || { print -u2 "proxy-switcher: config 里没有 opencode 的 marker 配置"; return 1 }
+  [[ -n "$marker" ]] || { print -u2 "proxy-switcher: config 里没有 opencode 的 marker 配置"; return 1; }
   _psw_run_with "$marker" command opencode "$@"
 }
 
@@ -76,6 +78,6 @@ function opencode-proxy() {
 function agy-proxy() {
   local marker
   marker="$(_psw_marker_name "antigravity")"
-  [[ -n "$marker" ]] || { print -u2 "proxy-switcher: config 里没有 antigravity 的 marker 配置"; return 2 }
+  [[ -n "$marker" ]] || { print -u2 "proxy-switcher: config 里没有 antigravity 的 marker 配置"; return 2; }
   _psw_run_with "$marker" command agy "$@"
 }

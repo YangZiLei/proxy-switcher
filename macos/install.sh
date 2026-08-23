@@ -1,4 +1,5 @@
 #!/bin/zsh
+# shellcheck shell=bash
 # ============================================================
 # proxy-switcher for macOS — installer
 #
@@ -107,8 +108,16 @@ launch_one() { # $1=显示名 $2=tool $3=icns 名
     build_app "$1" "$script" ""
   fi
 }
-gen_icns oc "OC" "0.04" "0.55" "0.40" "0.20" "0.83" "0.61" && launch_one "OpenCode 代理启动" "opencode" "oc" || launch_one "OpenCode 代理启动" "opencode" ""
-gen_icns ag "AG" "0.44" "0.24" "0.90" "0.65" "0.54" "0.99" && launch_one "Antigravity 代理启动" "antigravity" "ag" || launch_one "Antigravity 代理启动" "antigravity" ""
+if gen_icns oc "OC" "0.04" "0.55" "0.40" "0.20" "0.83" "0.61"; then
+  launch_one "OpenCode 代理启动" "opencode" "oc"
+else
+  launch_one "OpenCode 代理启动" "opencode" ""
+fi
+if gen_icns ag "AG" "0.44" "0.24" "0.90" "0.65" "0.54" "0.99"; then
+  launch_one "Antigravity 代理启动" "antigravity" "ag"
+else
+  launch_one "Antigravity 代理启动" "antigravity" ""
+fi
 rm -f /tmp/psw-icon-oc.icns /tmp/psw-icon-ag.icns
 
 echo "==> 4/4 ${1:+挂载 zsh 函数}"
