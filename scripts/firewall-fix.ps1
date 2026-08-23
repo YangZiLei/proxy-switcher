@@ -28,6 +28,12 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $configPath = Join-Path $scriptDir '..\config.json'
+if (-not (Test-Path -LiteralPath $configPath)) {
+    Write-Host "config.json not found at: $configPath" -ForegroundColor Red
+    Write-Host "Copy config.example.json to config.json and edit it first."
+    Read-Host "Press Enter to exit"
+    exit 1
+}
 $cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 $exePath = $cfg.apps.antigravity.desktop
 $binDir = Split-Path -Parent $exePath
