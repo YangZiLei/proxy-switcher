@@ -14,9 +14,9 @@ function Test-RequiredJsonFields {
     foreach ($key in $required) {
         $node = $cfg
         foreach ($seg in $key.Split('.')) { $node = $node.$seg }
-        if ($null -eq $node) { $missing += "$Label: missing required field '$key'" }
+        if ($null -eq $node) { $missing += "${Label}: missing required field '$key'" }
     }
-    return ,$missing
+    return $missing
 }
 
 $example = Join-Path $root 'config.example.json'
