@@ -196,6 +196,13 @@ proxy-switcher/
 └── README.md
 ```
 
+## Legal & Disclaimer
+
+- This is an independent developer utility, **not affiliated with or endorsed by** opencode, Antigravity/Google, FastLink, Clash, v2rayN, or any other vendor. Product names appear nominatively for interoperability identification only; no official logos are used.
+- **No proxy service included**: this repository ships no servers, nodes, subscriptions, accounts, or credentials. It only writes local marker files and sets process-scoped environment variables pointing at a proxy you already run yourself.
+- You are solely responsible for using this tool in compliance with applicable local laws and regulations and with the terms of service of any services you access.
+- Provided "AS IS", without warranty of any kind (see the MIT License below).
+
 ## License
 
 MIT
