@@ -1,9 +1,9 @@
 # proxy-switcher
 
-> **唯一解决桌面端 Electron AI 工具（Antigravity / opencode 桌面版）代理白屏的开源方案。**
-> The only open-source fix for white-screen on desktop Electron AI tools (Antigravity / opencode desktop).
+> **唯一解决桌面端 Electron AI 工具（Antigravity / opencode / Cursor 桌面版）代理白屏的开源方案。**
+> The only open-source fix for white-screen on desktop Electron AI tools (Antigravity / opencode / Cursor desktop).
 >
-> 为 AI 编程工具（opencode / Antigravity）提供**按工具独立**的代理开关，不污染全局环境变量。
+> 为 AI 编程工具（opencode / Antigravity / Cursor）提供**按工具独立**的代理开关，不污染全局环境变量。
 > Per-tool proxy toggle for AI coding tools — with zero global-env pollution.
 >
 > 跨平台：**Windows**（PowerShell 7） + **macOS**（zsh 零依赖）
@@ -41,6 +41,7 @@ iwr https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/scripts/inst
 
 - **opencode**：桌面端核心流量走内置 Node 服务（认 `HTTPS_PROXY` 环境变量）；终端 CLI 也是 Node 进程
 - **Antigravity (agy)**：桌面端是 Electron；真正访问 Google API 的是它 spawn 的 `language_server`（Go 进程，**认环境变量**）。Electron UI 只加载本地页面 `https://127.0.0.1:<port>`（端口动态）
+- **Cursor**：Electron 编辑器；AI 请求走主进程/extension host 的 Node 流量，**认环境变量**。CLI 包装脚本在安装目录 `resources\app\bin\cursor.cmd`（默认不在 PATH）。Windows 侧已支持；macOS 侧暂未适配
 
 所以正确的控制面不是"代理软件怎么配"，而是**在启动每个工具时，按需注入环境变量**。
 
@@ -62,7 +63,7 @@ iwr https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/scripts/inst
                                   └──────────────────────┘
 ```
 
-- **不写全局环境变量**：开关只影响 opencode / antigravity 两个工具，curl、git、npm、浏览器完全不受影响
+- **不写全局环境变量**：开关只影响 opencode / antigravity / cursor 三个工具，curl、git、npm、浏览器完全不受影响
 - **标记文件在用户主目录**：任何目录下都生效，不污染项目仓库
 - **只影响新进程**：已打开的终端/应用需重启才生效（进程环境变量机制使然，这也是预期行为）
 - **统一注入 `NO_PROXY=127.0.0.1,localhost`**：`HTTPS_PROXY` 注入后必须豁免回环，否则 Electron UI 加载本地页面也会走代理 → 白屏（详见下方"白屏"章节）。默认值如左；两个平台的 `config.json` 都可用 `no_proxy` 键覆盖（缺省时回落到 `127.0.0.1,localhost`）
@@ -95,13 +96,16 @@ iwr https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/scripts/inst
    ```
    [1] Enable  proxy for opencode (CLI + Desktop)
    [2] Enable  proxy for antigravity (CLI + Desktop)
-   [3] Disable proxy for opencode (direct)
-   [4] Disable proxy for antigravity (direct)
-   [5] Enable & launch opencode Desktop
-   [6] Enable & launch opencode CLI (this window)
-   [7] Enable & launch Antigravity Desktop
-   [8] Enable & launch Antigravity CLI (this window)
-   [9] Exit
+   [3] Enable  proxy for cursor (Desktop)
+   [4] Disable proxy for opencode (direct)
+   [5] Disable proxy for antigravity (direct)
+   [6] Disable proxy for cursor (direct)
+   [7]  Enable & launch opencode Desktop
+   [8]  Enable & launch opencode CLI (this window)
+   [9]  Enable & launch Antigravity Desktop
+   [10] Enable & launch Antigravity CLI (this window)
+   [11] Enable & launch Cursor Desktop
+   [12] Exit
    ```
 
 3. **（推荐）把桌面端快捷方式指向启动器**：开始菜单 `OpenCode.lnk` / `Antigravity.lnk` → 目标改为 `launchers/xxx-launch.bat`（应用更新有时会重置快捷方式，需重新指向）

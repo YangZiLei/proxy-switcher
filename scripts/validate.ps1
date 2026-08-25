@@ -16,6 +16,14 @@ function Test-RequiredJsonFields {
         foreach ($seg in $key.Split('.')) { $node = $node.$seg }
         if ($null -eq $node) { $missing += "${Label}: missing required field '$key'" }
     }
+    # cursor is optional: enforce consistency only when a cursor section exists
+    if ($null -ne $cfg.apps.cursor -or $null -ne $cfg.markers.cursor) {
+        foreach ($key in @('markers.cursor', 'apps.cursor.desktop', 'apps.cursor.cli')) {
+            $node = $cfg
+            foreach ($seg in $key.Split('.')) { $node = $node.$seg }
+            if ($null -eq $node) { $missing += "${Label}: missing field '$key' (cursor section present but incomplete)" }
+        }
+    }
     return $missing
 }
 

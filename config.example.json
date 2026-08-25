@@ -7,6 +7,7 @@
   "markers": {
     "opencode": ".opencode-proxy-on",
     "antigravity": ".agy-proxy-on",
+    "cursor": ".cursor-proxy-on",
     "comment": "Marker files live under %USERPROFILE% and toggle proxy per tool"
   },
   "apps": {
@@ -19,6 +20,11 @@
       "desktop": "C:\\Users\\<USERNAME>\\AppData\\Local\\Programs\\antigravity\\Antigravity.exe",
       "cli": "agy",
       "comment": "Antigravity desktop is Electron; its language_server subprocess honors HTTPS_PROXY"
+    },
+    "cursor": {
+      "desktop": "C:\\Users\\<USERNAME>\\AppData\\Local\\Programs\\cursor\\Cursor.exe",
+      "cli": "C:\\Users\\<USERNAME>\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd",
+      "comment": "Cursor is Electron; its Node/extension-host traffic honors HTTPS_PROXY. CLI wrapper is not on PATH by default"
     }
   }
 }
