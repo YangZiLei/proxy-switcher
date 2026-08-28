@@ -24,7 +24,7 @@
     "cursor": {
       "desktop": "C:\\Users\\<USERNAME>\\AppData\\Local\\Programs\\cursor\\Cursor.exe",
       "cli": "C:\\Users\\<USERNAME>\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd",
-      "comment": "Cursor is Electron; its Node/extension-host traffic honors HTTPS_PROXY. CLI wrapper is not on PATH by default"
+      "comment": "Cursor (VS Code Electron) does NOT reliably honor HTTPS_PROXY for desktop: Node side needs NODE_USE_ENV_PROXY=1, Chromium side reads system proxy. Prefer settings.json http.proxy/http.proxySupport=override; see README"
     }
   }
 }

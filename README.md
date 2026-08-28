@@ -18,13 +18,16 @@ curl -fsSL https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/insta
 curl -fsSL https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/install.sh | sh -s -- --with-zshrc
 ```
 
-**Windows**（PowerShell 7，先按下方说明配好 `config.json`）：
+**Windows**（PowerShell 7，需先 clone 仓库并配好 `config.json`）：
 
 ```powershell
-iwr https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/scripts/install.ps1 | iex
+git clone https://github.com/YangZiLei/proxy-switcher.git
+cd proxy-switcher
+Copy-Item config.example.json config.json   # 按需修改代理地址与各工具安装路径
+pwsh -File scripts/install.ps1               # （可选）创建开始菜单快捷方式
 ```
 
-也可以直接 clone 本仓库后本地安装：`./install.sh`（macOS）/ `pwsh -File scripts/install.ps1`（Windows）。安装器幂等，重复执行安全。fork 部署时可用 `PROXY_SWITCHER_REPO_URL` 环境变量覆盖默认克隆地址。
+> Windows 侧必须先用 `git clone` 获取仓库——安装器生成的快捷方式指向仓库内脚本，`curl | sh` 式一行安装不适用于 Windows（macOS 侧可，因其会自动浅克隆）。安装器幂等，重复执行安全；fork 部署时可用 `PROXY_SWITCHER_REPO_URL` 环境变量覆盖默认克隆地址。
 
 ## 为什么是唯一方案 / Why it's the only fix
 
@@ -41,7 +44,7 @@ iwr https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/scripts/inst
 
 - **opencode**：桌面端核心流量走内置 Node 服务（认 `HTTPS_PROXY` 环境变量）；终端 CLI 也是 Node 进程
 - **Antigravity (agy)**：桌面端是 Electron；真正访问 Google API 的是它 spawn 的 `language_server`（Go 进程，**认环境变量**）。Electron UI 只加载本地页面 `https://127.0.0.1:<port>`（端口动态）
-- **Cursor**：Electron 编辑器；AI 请求走主进程/extension host 的 Node 流量，**认环境变量**。CLI 包装脚本在安装目录 `resources\app\bin\cursor.cmd`（默认不在 PATH）。Windows 侧已支持；macOS 侧暂未适配
+- **Cursor**：Electron 编辑器（VS Code 系）。AI 流量分多路——Chromium 主进程 + Node extension host + 各后台 worker，其中 **Node 侧默认不读 `HTTPS_PROXY`（需 `NODE_USE_ENV_PROXY=1`），Chromium 侧认系统代理而非环境变量**，因此仅注入环境变量对桌面端**不可靠**。CLI 包装脚本在 `resources\app\bin\cursor.cmd`（默认不在 PATH）。推荐用 Cursor 自带的 `settings.json`（`http.proxy` + `http.proxySupport: "override"`）或 TUN 兜底，详见下方「Cursor 专属说明」。Windows 侧已支持；macOS 侧暂未适配
 
 所以正确的控制面不是"代理软件怎么配"，而是**在启动每个工具时，按需注入环境变量**。
 
@@ -109,7 +112,7 @@ iwr https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/scripts/inst
    ```
 
 3. **（推荐）把桌面端快捷方式指向启动器**：开始菜单 `OpenCode.lnk` / `Antigravity.lnk` → 目标改为 `launchers/xxx-launch.bat`（应用更新有时会重置快捷方式，需重新指向）
-4. **（可选）装 profile 函数**：把 `profile/profile-functions.ps1` dot-source 进 PowerShell profile，使用独立命令 `opencode-proxy` / `agy-proxy`，不覆盖你已有的 `opencode`/`agy`
+4. **（可选）装 profile 函数**：把 `profile/profile-functions.ps1` dot-source 进 PowerShell profile，使用独立命令 `opencode-proxy` / `agy-proxy` / `cursor-proxy`，不覆盖你已有的 `opencode`/`agy`/`cursor`
 5. **（可选）创建开始菜单快捷方式**：先配好 `config.json`，再 `pwsh -File scripts/install.ps1`
 
 ### Windows 白屏排查
@@ -121,6 +124,25 @@ electron: Failed to load URL: https://127.0.0.1:<port>/ with error: ERR_CONNECTI
 **根因（已修复）**：注入 `HTTPS_PROXY` 时未豁免 localhost → Chromium 用代理加载本地 UI 页面，代理未就绪即超时白屏。`launchers/launch.ps1` 已在注入时设置 `NO_PROXY=127.0.0.1,localhost`。
 
 **仍建议运行一次防火墙规则（双重保障）**：Windows 防火墙默认可能拦截回环入站，导致同样症状。以管理员运行 `scripts/firewall-fix.ps1`（仅为 Antigravity.exe / language_server.exe 创建回环入站和应用出站规则；不修改防火墙总开关）。规则持久，无需每次重跑。
+
+### Windows 的 Cursor 专属说明（重要）
+
+Cursor 桌面端**不能靠环境变量代理可靠生效**，根因是它的网络架构：
+
+- 它是 VS Code 系 Electron 应用，AI 请求分散在**主进程（Chromium 网络栈）**、**extension host（Node）**和**多个后台 worker（索引 / LSP）**上；
+- Chromium 网络栈认的是**系统代理 / PAC**，不读 `HTTPS_PROXY` 环境变量；
+- Node 侧默认也**不读** `HTTP_PROXY`/`HTTPS_PROXY`，除非显式设置 `NODE_USE_ENV_PROXY=1`（Cursor 官方 CLI 文档要求）；
+- 部分后台进程会直接绕过系统代理。
+
+因此本项目对 cursor 仅做「标记 + 环境变量注入」，**对桌面端效果有限**。请按可靠度从高到低选择：
+
+| 方案 | 说明 | 是否全局 |
+|------|------|---------|
+| **settings.json（推荐，非 TUN）** | 在 Cursor 设置里写 `"http.proxy": "http://127.0.0.1:7892"`、`"http.proxySupport": "override"`。走 VS Code 自己的代理解析层，主进程与 Node 两侧都覆盖，且**不污染全局**，与本项目理念一致 | 否 |
+| CLI 环境变量 | 启动 CLI 前设置 `NODE_USE_ENV_PROXY=1` + `HTTPS_PROXY`/`HTTP_PROXY`（Cursor 官方 CLI 文档要求） | 否 |
+| **TUN 模式（兜底）** | 虚拟网卡在内核层接管所有流量，覆盖最全，但**全局接管**，与「按工具独立」定位冲突；且需在规则里豁免回环 / 局域网并配 fake-ip DNS 防劫持 | 是 |
+
+> `settings.json` 位于 `%APPDATA%\Cursor\User\settings.json`，其中 `http.proxy` 填你的本地代理地址（与 `config.json` 的 `proxy.url` 一致即可）。
 
 ---
 
