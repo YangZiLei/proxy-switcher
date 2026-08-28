@@ -57,6 +57,14 @@ function Set-ProxyEnv {
     $env:no_proxy = $noProxy
 }
 
+# Cursor 桌面端不认环境变量代理，需同步其 settings.json 的
+# http.proxy / http.proxySupport（见 README「Cursor 专属说明」）。
+function Update-CursorProxy([string]$Action) {
+    $script = Join-Path $scriptDir 'scripts\cursor-settings.ps1'
+    if ($Action -eq 'set') { & $script -Action set -Proxy $proxy }
+    else { & $script -Action clear }
+}
+
 # ============================================================
 while ($true) {
     try { Clear-Host } catch { }
@@ -104,6 +112,7 @@ while ($true) {
                 break
             }
             Set-Content -LiteralPath $markerCur -Value $proxy
+            Update-CursorProxy 'set'
             Write-Host ""
             Write-Host "[OK] cursor proxy enabled (Desktop)"
             Write-Host "     Restart Cursor (via launcher or option 11) to apply"
@@ -128,6 +137,7 @@ while ($true) {
                 break
             }
             Remove-Item -LiteralPath $markerCur -ErrorAction SilentlyContinue
+            Update-CursorProxy 'clear'
             Write-Host ""
             Write-Host "[OK] cursor back to direct"
             Read-Host "Press Enter to return"
@@ -185,6 +195,7 @@ while ($true) {
                 break
             }
             Set-Content -LiteralPath $markerCur -Value $proxy
+            Update-CursorProxy 'set'
             Set-ProxyEnv
             if (-not (Test-ToolPath $curApp.desktop)) {
                 Write-Host "Desktop executable not found: $($curApp.desktop)" -ForegroundColor Red

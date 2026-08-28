@@ -134,7 +134,7 @@ Cursor 桌面端**不能靠环境变量代理可靠生效**，根因是它的网
 - Node 侧默认也**不读** `HTTP_PROXY`/`HTTPS_PROXY`，除非显式设置 `NODE_USE_ENV_PROXY=1`（Cursor 官方 CLI 文档要求）；
 - 部分后台进程会直接绕过系统代理。
 
-因此本项目对 cursor 仅做「标记 + 环境变量注入」，**对桌面端效果有限**。请按可靠度从高到低选择：
+因此本项目在菜单**开 / 关 cursor 代理**时，会**自动写入 / 移除** Cursor `settings.json` 的 `http.proxy` 与 `http.proxySupport`（见 `scripts/cursor-settings.ps1`），**无需手动改、也不用开 TUN**；环境变量注入对 Cursor 桌面端本身不可靠，仅作兜底。若仍要手动配置，可用下表方案（可靠度从高到低）：
 
 | 方案 | 说明 | 是否全局 |
 |------|------|---------|

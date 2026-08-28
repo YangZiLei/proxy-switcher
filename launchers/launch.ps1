@@ -62,6 +62,13 @@ if (Test-Path $marker) {
     $env:no_proxy = $noProxy
 }
 
+# Cursor 桌面端不认环境变量代理，需同步其 settings.json（见 README「Cursor 专属说明」）
+if ($App -eq 'cursor') {
+    $cursorScript = Join-Path $scriptDir '..\scripts\cursor-settings.ps1'
+    if (Test-Path $marker) { & $cursorScript -Action set -Proxy $proxy }
+    else { & $cursorScript -Action clear }
+}
+
 switch ($Mode) {
     'desktop' {
         if (-not (Test-Path -LiteralPath $appCfg.desktop)) {
