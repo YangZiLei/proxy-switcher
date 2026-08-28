@@ -13,7 +13,8 @@ $programs = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\proxy-
 $shortcuts = @(
     @{ Name = 'Proxy Switcher.lnk'; Target = Join-Path $root 'switcher.bat'; WorkDir = $root },
     @{ Name = 'OpenCode (proxy-switcher).lnk'; Target = Join-Path $root 'launchers\opencode-launch.bat'; WorkDir = $root },
-    @{ Name = 'Antigravity (proxy-switcher).lnk'; Target = Join-Path $root 'launchers\antigravity-launch.bat'; WorkDir = $root }
+    @{ Name = 'Antigravity (proxy-switcher).lnk'; Target = Join-Path $root 'launchers\antigravity-launch.bat'; WorkDir = $root },
+    @{ Name = 'Cursor (proxy-switcher).lnk'; Target = Join-Path $root 'launchers\cursor-launch.bat'; WorkDir = $root }
 )
 
 if ($WhatIf) {

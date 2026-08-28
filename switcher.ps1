@@ -98,6 +98,11 @@ while ($true) {
             Read-Host "Press Enter to return"
         }
         "3" {
+            if (-not $markerCur) {
+                Write-Host "cursor not configured in config.json" -ForegroundColor Yellow
+                Read-Host "Press Enter to return"
+                break
+            }
             Set-Content -LiteralPath $markerCur -Value $proxy
             Write-Host ""
             Write-Host "[OK] cursor proxy enabled (Desktop)"
@@ -117,6 +122,11 @@ while ($true) {
             Read-Host "Press Enter to return"
         }
         "6" {
+            if (-not $markerCur) {
+                Write-Host "cursor not configured in config.json" -ForegroundColor Yellow
+                Read-Host "Press Enter to return"
+                break
+            }
             Remove-Item -LiteralPath $markerCur -ErrorAction SilentlyContinue
             Write-Host ""
             Write-Host "[OK] cursor back to direct"
@@ -169,6 +179,11 @@ while ($true) {
             Read-Host "agy CLI exited. Press Enter to return"
         }
         "11" {
+            if (-not $markerCur -or -not $curApp) {
+                Write-Host "cursor not configured in config.json" -ForegroundColor Yellow
+                Read-Host "Press Enter to return"
+                break
+            }
             Set-Content -LiteralPath $markerCur -Value $proxy
             Set-ProxyEnv
             if (-not (Test-ToolPath $curApp.desktop)) {
