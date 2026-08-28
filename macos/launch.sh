@@ -55,34 +55,64 @@ _psw_recover_white_screen() {
   dp=$(head -1 "$HOME/Library/Application Support/$app_name/DevToolsActivePort" 2>/dev/null | tr -d ' ')
   [[ -z "$dp" ]] && { print -u2 "警告: 未找到 DevTools 端口，请手动 Cmd+R 恢复"; return 0; }
 
-  # 找到主窗口 target（URL 以 https://127.0.0.1: 开头），排除 splash(data:)
-  # 标题 = "127.0.0.1:<port>" 或空 = 白屏；标题为真实值(如 Antigravity/onboarding) = 已加载
+  # 找到窗口 target：优先主窗口(https://127.0.0.1:)，否则 splash(data:) 也可用于导航
+  # 白屏判定：主窗口标题 = "127.0.0.1:<port>" 或空；真实标题如 Antigravity = 已加载
   local attempt
-  local tgt=""
-  local title=""
   for (( attempt = 0; attempt < 12; attempt++ )); do
-    tgt=$(curl -s "http://127.0.0.1:$dp/json/list" 2>/dev/null | python3 -c "
+    local pages_json
+    pages_json=$(curl -s "http://127.0.0.1:$dp/json/list" 2>/dev/null)
+    [[ -z "$pages_json" || "$pages_json" == "[]" ]] && { sleep 6; continue; }
+
+    # 1) 尝试找主窗口（https://127.0.0.1:）
+    local tgt="" title=""
+    tgt=$(echo "$pages_json" | python3 -c "
 import sys, json
 try:
     for t in json.load(sys.stdin):
         if t.get('type')=='page' and t.get('url','').startswith('https://127.0.0.1:'):
-            print(t.get('webSocketDebuggerUrl','')+'||'+t.get('title',''))
+            print(t.get('webSocketDebuggerUrl','')+'||'+t.get('title','')+'||'+t.get('url',''))
             break
 except Exception:
     pass" 2>/dev/null)
-    [[ -z "$tgt" ]] && { print -u2 "警告: 未找到主窗口 target，请手动 Cmd+R 恢复"; return 0; }
-    title="${tgt#*||}"
-    if [[ "$title" != "127.0.0.1:"* && -n "$title" ]]; then
-      print "白屏恢复完成（窗口已加载: $title）"
-      return 0
-    fi
-
-    node -e '
+    if [[ -n "$tgt" ]]; then
+      title="${tgt#*||}"; title="${title%%||*}"
+      if [[ "$title" != "127.0.0.1:"* && -n "$title" ]]; then
+        print "白屏恢复完成（窗口已加载: $title）"
+        return 0
+      fi
+      # 白屏：重载当前 URL
+      node -e '
 const ws = new WebSocket(process.argv[1]);
 const t = setTimeout(()=>process.exit(0), 4000);
 ws.onopen = () => { ws.send(JSON.stringify({id:1,method:"Page.reload",params:{ignoreCache:true}})); setTimeout(()=>{clearTimeout(t);process.exit(0)},800); };
 ws.onerror = () => { clearTimeout(t); process.exit(1); };
 ' "${tgt%%||*}" >/dev/null 2>&1
+      sleep 6
+      continue
+    fi
+
+    # 2) 未找到主窗口，可能还在 splash(data:) → 导航到 LS URL
+    local splash_ws=""
+    splash_ws=$(echo "$pages_json" | python3 -c "
+import sys, json
+try:
+    for t in json.load(sys.stdin):
+        if t.get('type')=='page':
+            print(t.get('webSocketDebuggerUrl',''))
+            break
+except Exception:
+    pass" 2>/dev/null)
+    if [[ -n "$splash_ws" && -n "$lsport" ]]; then
+      node -e '
+const ws = new WebSocket(process.argv[1]);
+const url = process.argv[2];
+const t = setTimeout(()=>process.exit(0), 4000);
+ws.onopen = () => { ws.send(JSON.stringify({id:1,method:"Page.navigate",params:{url}})); setTimeout(()=>{clearTimeout(t);process.exit(0)},800); };
+ws.onerror = () => { clearTimeout(t); process.exit(1); };
+' "$splash_ws" "https://127.0.0.1:$lsport/" >/dev/null 2>&1
+      sleep 6
+      continue
+    fi
     sleep 6
   done
   print -u2 "警告: 重载多次仍未加载，请手动 Cmd+R 恢复"
