@@ -1,9 +1,9 @@
 # proxy-switcher
 
-> **唯一解决桌面端 Electron AI 工具（Antigravity / opencode / Cursor 桌面版）代理白屏的开源方案。**
-> The only open-source fix for white-screen on desktop Electron AI tools (Antigravity / opencode / Cursor desktop).
+> **唯一解决桌面端 Electron AI 工具（Antigravity / opencode 桌面版）代理白屏的开源方案。**
+> The only open-source fix for white-screen on desktop Electron AI tools (Antigravity / opencode desktop).
 >
-> 为 AI 编程工具（opencode / Antigravity / Cursor）提供**按工具独立**的代理开关，不污染全局环境变量。
+> 为 AI 编程工具（opencode / Antigravity）提供**按工具独立**的代理开关，不污染全局环境变量。
 > Per-tool proxy toggle for AI coding tools — with zero global-env pollution.
 >
 > 跨平台：**Windows**（PowerShell 7） + **macOS**（zsh 零依赖）
@@ -44,7 +44,6 @@ pwsh -File scripts/install.ps1               # （可选）创建开始菜单快
 
 - **opencode**：桌面端核心流量走内置 Node 服务（认 `HTTPS_PROXY` 环境变量）；终端 CLI 也是 Node 进程
 - **Antigravity (agy)**：桌面端是 Electron；真正访问 Google API 的是它 spawn 的 `language_server`（Go 进程，**认环境变量**）。Electron UI 只加载本地页面 `https://127.0.0.1:<port>`（端口动态）
-- **Cursor**：Electron 编辑器（VS Code 系）。AI 流量分多路——Chromium 主进程 + Node extension host + 各后台 worker，其中 **Node 侧默认不读 `HTTPS_PROXY`（需 `NODE_USE_ENV_PROXY=1`），Chromium 侧认系统代理而非环境变量**，因此仅注入环境变量对桌面端**不可靠**。CLI 包装脚本在 `resources\app\bin\cursor.cmd`（默认不在 PATH）。推荐用 Cursor 自带的 `settings.json`（`http.proxy` + `http.proxySupport: "override"`）或 TUN 兜底，详见下方「Cursor 专属说明」。Windows 侧已支持；macOS 侧暂未适配
 
 所以正确的控制面不是"代理软件怎么配"，而是**在启动每个工具时，按需注入环境变量**。
 
@@ -66,7 +65,7 @@ pwsh -File scripts/install.ps1               # （可选）创建开始菜单快
                                   └──────────────────────┘
 ```
 
-- **不写全局环境变量**：开关只影响 opencode / antigravity / cursor 三个工具，curl、git、npm、浏览器完全不受影响
+- **不写全局环境变量**：开关只影响 opencode / antigravity 两个工具，curl、git、npm、浏览器完全不受影响
 - **标记文件在用户主目录**：任何目录下都生效，不污染项目仓库
 - **只影响新进程**：已打开的终端/应用需重启才生效（进程环境变量机制使然，这也是预期行为）
 - **统一注入 `NO_PROXY=127.0.0.1,localhost`**：`HTTPS_PROXY` 注入后必须豁免回环，否则 Electron UI 加载本地页面也会走代理 → 白屏（详见下方"白屏"章节）。默认值如左；两个平台的 `config.json` 都可用 `no_proxy` 键覆盖（缺省时回落到 `127.0.0.1,localhost`）
@@ -97,22 +96,19 @@ pwsh -File scripts/install.ps1               # （可选）创建开始菜单快
    ```
 
    ```
-   [1] Enable  proxy for opencode (CLI + Desktop)
-   [2] Enable  proxy for antigravity (CLI + Desktop)
-   [3] Enable  proxy for cursor (Desktop)
-   [4] Disable proxy for opencode (direct)
-   [5] Disable proxy for antigravity (direct)
-   [6] Disable proxy for cursor (direct)
-   [7]  Enable & launch opencode Desktop
-   [8]  Enable & launch opencode CLI (this window)
-   [9]  Enable & launch Antigravity Desktop
-   [10] Enable & launch Antigravity CLI (this window)
-   [11] Enable & launch Cursor Desktop
-   [12] Exit
+   [1] 开启 opencode 代理 (CLI + 桌面)
+   [2] 开启 antigravity 代理 (CLI + 桌面)
+   [3] 关闭 opencode 代理 (直连)
+   [4] 关闭 antigravity 代理 (直连)
+   [5] 启动 opencode 桌面端 (按标记注入代理)
+   [6] 启动 Antigravity 桌面端 (按标记注入代理)
+   [7] 开启代理并启动 opencode CLI (本窗口)
+   [8] 开启代理并启动 Antigravity CLI (本窗口)
+   [9] 退出
    ```
 
 3. **（推荐）把桌面端快捷方式指向启动器**：开始菜单 `OpenCode.lnk` / `Antigravity.lnk` → 目标改为 `launchers/xxx-launch.bat`（应用更新有时会重置快捷方式，需重新指向）
-4. **（可选）装 profile 函数**：把 `profile/profile-functions.ps1` dot-source 进 PowerShell profile，使用独立命令 `opencode-proxy` / `agy-proxy` / `cursor-proxy`，不覆盖你已有的 `opencode`/`agy`/`cursor`
+4. **（可选）装 profile 函数**：把 `profile/profile-functions.ps1` dot-source 进 PowerShell profile，使用独立命令 `opencode-proxy` / `agy-proxy`，不覆盖你已有的 `opencode`/`agy`
 5. **（可选）创建开始菜单快捷方式**：先配好 `config.json`，再 `pwsh -File scripts/install.ps1`
 
 ### Windows 白屏排查
@@ -124,25 +120,6 @@ electron: Failed to load URL: https://127.0.0.1:<port>/ with error: ERR_CONNECTI
 **根因（已修复）**：注入 `HTTPS_PROXY` 时未豁免 localhost → Chromium 用代理加载本地 UI 页面，代理未就绪即超时白屏。`launchers/launch.ps1` 已在注入时设置 `NO_PROXY=127.0.0.1,localhost`。
 
 **仍建议运行一次防火墙规则（双重保障）**：Windows 防火墙默认可能拦截回环入站，导致同样症状。以管理员运行 `scripts/firewall-fix.ps1`（仅为 Antigravity.exe / language_server.exe 创建回环入站和应用出站规则；不修改防火墙总开关）。规则持久，无需每次重跑。
-
-### Windows 的 Cursor 专属说明（重要）
-
-Cursor 桌面端**不能靠环境变量代理可靠生效**，根因是它的网络架构：
-
-- 它是 VS Code 系 Electron 应用，AI 请求分散在**主进程（Chromium 网络栈）**、**extension host（Node）**和**多个后台 worker（索引 / LSP）**上；
-- Chromium 网络栈认的是**系统代理 / PAC**，不读 `HTTPS_PROXY` 环境变量；
-- Node 侧默认也**不读** `HTTP_PROXY`/`HTTPS_PROXY`，除非显式设置 `NODE_USE_ENV_PROXY=1`（Cursor 官方 CLI 文档要求）；
-- 部分后台进程会直接绕过系统代理。
-
-因此本项目在菜单**开 / 关 cursor 代理**时，会**自动写入 / 移除** Cursor `settings.json` 的 `http.proxy` 与 `http.proxySupport`（见 `scripts/cursor-settings.ps1`），**无需手动改、也不用开 TUN**；环境变量注入对 Cursor 桌面端本身不可靠，仅作兜底。若仍要手动配置，可用下表方案（可靠度从高到低）：
-
-| 方案 | 说明 | 是否全局 |
-|------|------|---------|
-| **settings.json（推荐，非 TUN）** | 在 Cursor 设置里写 `"http.proxy": "http://127.0.0.1:7892"`、`"http.proxySupport": "override"`。走 VS Code 自己的代理解析层，主进程与 Node 两侧都覆盖，且**不污染全局**，与本项目理念一致 | 否 |
-| CLI 环境变量 | 启动 CLI 前设置 `NODE_USE_ENV_PROXY=1` + `HTTPS_PROXY`/`HTTP_PROXY`（Cursor 官方 CLI 文档要求） | 否 |
-| **TUN 模式（兜底）** | 虚拟网卡在内核层接管所有流量，覆盖最全，但**全局接管**，与「按工具独立」定位冲突；且需在规则里豁免回环 / 局域网并配 fake-ip DNS 防劫持 | 是 |
-
-> `settings.json` 位于 `%APPDATA%\Cursor\User\settings.json`，其中 `http.proxy` 填你的本地代理地址（与 `config.json` 的 `proxy.url` 一致即可）。
 
 ---
 
@@ -196,7 +173,7 @@ electron: Failed to load URL: https://127.0.0.1:<port>/ with error: ERR_TIMED_OU
 
 **白屏仍在？**：等 LS 就绪后按 `Cmd+R` 手动重载；或确认代理客户端端口与 `config.json` 的 `proxy.url` 一致。
 
-> **单实例说明（跨平台差异）**：Electron 是单实例——同一应用二次启动会把请求转发给旧进程后退出。macOS 启动器已自动处理（杀旧实例 → 等完全退出 → 再拉起），所以切换代理状态后双击启动器即生效；**Windows 版未做自动处理**，切换代理后需要先手动退出应用再重新启动（或用菜单 [5]/[7] 重启）。
+> **单实例说明（跨平台差异）**：Electron 是单实例——同一应用二次启动会把请求转发给旧进程后退出。macOS 启动器已自动处理（杀旧实例 → 等完全退出 → 再拉起），所以切换代理状态后双击启动器即生效；**Windows 版未做自动处理**，切换代理后需要先手动退出应用再重新启动（或用菜单 [5]/[6] 重启）。
 
 ---
 

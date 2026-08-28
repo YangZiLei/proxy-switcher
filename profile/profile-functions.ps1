@@ -2,7 +2,7 @@
 # proxy-switcher - optional PowerShell profile functions
 #
 # Dot-source this file from your PowerShell profile to add the
-# explicit commands `opencode-proxy`, `agy-proxy` and `cursor-proxy`.
+# explicit commands `opencode-proxy` and `agy-proxy`.
 #
 #   Add to $PROFILE:
 #     . "C:\path\to\proxy-switcher\profile\profile-functions.ps1"
@@ -79,22 +79,4 @@ function opencode-proxy {
     }
     Invoke-WithProxySwitch -Marker (Read-ProxySwitcherConfig).markers.opencode `
         -CommandPath $real.Source @args
-}
-
-# cursor - CLI wrapper lives under resources\app\bin and is not on PATH by default
-function cursor-proxy {
-    $real = Get-Command cursor -All -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandType -ne 'Function' } |
-        Select-Object -First 1
-    if ($real) {
-        $cmdPath = $real.Source
-    }
-    else {
-        $cmdPath = Join-Path $env:LOCALAPPDATA 'Programs\cursor\resources\app\bin\cursor.cmd'
-        if (-not (Test-Path -LiteralPath $cmdPath)) {
-            throw 'Could not find the cursor CLI.'
-        }
-    }
-    Invoke-WithProxySwitch -Marker (Read-ProxySwitcherConfig).markers.cursor `
-        -CommandPath $cmdPath @args
 }

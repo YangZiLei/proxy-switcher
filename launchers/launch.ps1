@@ -25,7 +25,7 @@
 
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('opencode', 'antigravity', 'cursor')]
+    [ValidateSet('opencode', 'antigravity')]
     [string]$App,
 
     [Parameter(Mandatory = $true)]
@@ -60,13 +60,6 @@ if (Test-Path $marker) {
     # reaches the internet through HTTPS_PROXY as intended.
     $env:NO_PROXY = $noProxy
     $env:no_proxy = $noProxy
-}
-
-# Cursor 桌面端不认环境变量代理，需同步其 settings.json（见 README「Cursor 专属说明」）
-if ($App -eq 'cursor') {
-    $cursorScript = Join-Path $scriptDir '..\scripts\cursor-settings.ps1'
-    if (Test-Path $marker) { & $cursorScript -Action set -Proxy $proxy }
-    else { & $cursorScript -Action clear }
 }
 
 switch ($Mode) {

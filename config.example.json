@@ -7,7 +7,6 @@
   "markers": {
     "opencode": ".opencode-proxy-on",
     "antigravity": ".agy-proxy-on",
-    "cursor": ".cursor-proxy-on",
     "comment": "Marker files live under %USERPROFILE% and toggle proxy per tool"
   },
   "apps": {
@@ -20,11 +19,6 @@
       "desktop": "C:\\Users\\<USERNAME>\\AppData\\Local\\Programs\\antigravity\\Antigravity.exe",
       "cli": "agy",
       "comment": "Antigravity desktop is Electron; its language_server subprocess honors HTTPS_PROXY"
-    },
-    "cursor": {
-      "desktop": "C:\\Users\\<USERNAME>\\AppData\\Local\\Programs\\cursor\\Cursor.exe",
-      "cli": "C:\\Users\\<USERNAME>\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd",
-      "comment": "Cursor (VS Code Electron) does NOT reliably honor HTTPS_PROXY for desktop: Node side needs NODE_USE_ENV_PROXY=1, Chromium side reads system proxy. Prefer settings.json http.proxy/http.proxySupport=override; see README"
     }
   }
 }
