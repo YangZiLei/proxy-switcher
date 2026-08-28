@@ -79,13 +79,19 @@ case "$(detect_os)" in
   windows)
     # Windows 侧 install.ps1 已覆盖开始菜单快捷方式创建,此处只做入口统一
     if [ -f "$SCRIPT_DIR/scripts/install.ps1" ]; then
-      powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT_DIR/scripts/install.ps1" "$@"
+      PS1_SCRIPT="$SCRIPT_DIR/scripts/install.ps1"
     else
       REPO_URL="${PROXY_SWITCHER_REPO_URL:-$DEFAULT_REPO_URL}"
       TMP_DIR=$(mktemp -d)
+      echo "==> 克隆仓库: $REPO_URL"
       git clone --depth 1 "$REPO_URL" "$TMP_DIR/proxy-switcher"
-      powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$TMP_DIR/proxy-switcher/scripts/install.ps1" "$@"
+      PS1_SCRIPT="$TMP_DIR/proxy-switcher/scripts/install.ps1"
     fi
+    # Git Bash/MSYS 的 POSIX 路径(如 /e/...)必须转成 Windows 原生路径,
+    # 否则 powershell.exe -File 找不到脚本;sh 层参数(如 --with-zshrc)与
+    # install.ps1 的 -WhatIf 不通用,故不向下透传。
+    PS1_SCRIPT_WIN=$(cygpath -w "$PS1_SCRIPT" 2>/dev/null || printf '%s' "$PS1_SCRIPT")
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PS1_SCRIPT_WIN"
     print_verify
     ;;
   *)
