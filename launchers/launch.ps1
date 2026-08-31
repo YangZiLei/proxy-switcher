@@ -21,6 +21,9 @@
 #     Chromium route even loopback requests through the proxy, which
 #     white-screens the UI when the proxy is down and can export
 #     loopback traffic off-host. The subprocess still uses HTTPS_PROXY.
+#   * Electron is single-instance: a second start forwards to the old
+#     process and exits. If an instance is already running, quit it and
+#     wait so the new process actually inherits the env for this marker.
 # ============================================================
 
 param(
@@ -38,28 +41,45 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$configPath = Join-Path $scriptDir '..\config.json'
-if (-not (Test-Path -LiteralPath $configPath)) {
-    Write-Host "config.json not found. Copy config.example.json to config.json and edit it." -ForegroundColor Red
-    exit 1
-}
-$cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-$appCfg = $cfg.apps.$App
-$marker = Join-Path $env:USERPROFILE $cfg.markers.$App
-$proxy = $cfg.proxy.url
-$noProxy = if ($cfg.no_proxy) { $cfg.no_proxy } else { '127.0.0.1,localhost' }
+. (Join-Path $scriptDir '..\scripts\ProxySwitcher.ps1')
 
-if (Test-Path $marker) {
-    $env:HTTPS_PROXY = $proxy
-    $env:HTTP_PROXY  = $proxy
-    # Exempt loopback so the Electron UI (which loads a LOCAL page at
-    # https://127.0.0.1:<port>) does NOT route that local request through
-    # the proxy. Without this, a not-yet-ready proxy makes the UI fail with
-    # ERR_TIMED_OUT (white screen), and loopback traffic can be exported
-    # off-host via the proxy chain. The language_server subprocess still
-    # reaches the internet through HTTPS_PROXY as intended.
-    $env:NO_PROXY = $noProxy
-    $env:no_proxy = $noProxy
+$cfg = Get-ProxySwitcherConfig
+$appCfg = $cfg.apps.$App
+$marker = Get-ProxySwitcherMarkerPath -App $App
+
+function Get-DesktopMainProcessId {
+    param([string]$ExePath)
+    $full = [System.IO.Path]::GetFullPath($ExePath)
+    Get-CimInstance -ClassName Win32_Process |
+        Where-Object {
+            $_.ExecutablePath -and
+            [string]::Equals($_.ExecutablePath, $full, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $_.CommandLine -and
+            ($_.CommandLine -notmatch '--type=')
+        } |
+        Select-Object -ExpandProperty ProcessId
+}
+
+function Stop-DesktopInstance {
+    param([string]$ExePath)
+    $ids = @(Get-DesktopMainProcessId -ExePath $ExePath)
+    if ($ids.Count -eq 0) { return }
+    Write-Host "Stopping running instance so the new env takes effect..."
+    foreach ($id in $ids) {
+        $gp = Get-Process -Id $id -ErrorAction SilentlyContinue
+        if ($gp) { $null = $gp.CloseMainWindow() }
+    }
+    $waited = 0
+    while ($waited -lt 12) {
+        if (@(Get-DesktopMainProcessId -ExePath $ExePath).Count -eq 0) { return }
+        Start-Sleep -Seconds 1
+        $waited++
+    }
+    Write-Host "Old instance did not exit in time, forcing stop..."
+    foreach ($id in @(Get-DesktopMainProcessId -ExePath $ExePath)) {
+        Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 1
 }
 
 switch ($Mode) {
@@ -68,9 +88,21 @@ switch ($Mode) {
             Write-Host "Desktop executable not found: $($appCfg.desktop)" -ForegroundColor Red
             exit 1
         }
-        Start-Process -FilePath $appCfg.desktop
+        Stop-DesktopInstance -ExePath $appCfg.desktop
+        $mode = if (Test-Path -LiteralPath $marker) { 'inject' } else { 'clear' }
+        if ($mode -eq 'inject') {
+            Write-Host "Marker on, launching with proxy: $($cfg.proxy.url)"
+        }
+        else {
+            Write-Host "Marker off, launching direct (no proxy env)."
+        }
+        Invoke-WithProxySwitcherEnv -Mode $mode -Action {
+            param($Desktop)
+            Start-Process -FilePath $Desktop
+        } -ArgumentList $appCfg.desktop
     }
     'cli' {
-        & $appCfg.cli @CommandArgs
+        $cli = Resolve-ProxySwitcherCli -App $App
+        Invoke-ProxySwitcherCommand -App $App -CommandPath $cli @CommandArgs
     }
 }

@@ -4,7 +4,7 @@
 # proxy-switcher for macOS — installer
 #
 # 一键部署到 ~/.config/proxy-switcher/ 并生成双击启动器：
-#   ~/Applications/代理切换.app           (Ghostty 打开主菜单)
+#   ~/Applications/代理切换.app           (检测终端打开主菜单)
 #   ~/Applications/OpenCode 代理启动.app
 #   ~/Applications/Antigravity 代理启动.app
 #
@@ -19,14 +19,14 @@ set -e
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 DST_DIR="$HOME/.config/proxy-switcher"
 APP_DIR="$HOME/Applications"
-GHOSTTY="/Applications/Ghostty.app/Contents/MacOS/ghostty"
 
 [[ -d "$APP_DIR" ]] || mkdir -p "$APP_DIR"
 
 echo "==> 1/4 复制脚本到 $DST_DIR"
 mkdir -p "$DST_DIR"
-cp "$SRC_DIR/switcher.sh" "$SRC_DIR/launch.sh" "$SRC_DIR/profile.zsh" "$DST_DIR/"
-chmod +x "$DST_DIR/switcher.sh" "$DST_DIR/launch.sh"
+cp "$SRC_DIR/switcher.sh" "$SRC_DIR/launch.sh" "$SRC_DIR/profile.zsh" \
+   "$SRC_DIR/lib.zsh" "$SRC_DIR/open-menu.sh" "$DST_DIR/"
+chmod +x "$DST_DIR/switcher.sh" "$DST_DIR/launch.sh" "$DST_DIR/open-menu.sh"
 
 if [[ ! -f "$DST_DIR/config.json" ]]; then
   cp "$SRC_DIR/config.example.json" "$DST_DIR/config.json"
@@ -80,10 +80,13 @@ EOF
   return 1
 }
 
-build_app() { # $1=目标名 $2=osacompile 脚本 $3=icns
+build_app() { # $1=目标名 $2=AppleScript 源码 $3=icns
   local dest="$APP_DIR/$1.app"
+  local src="/tmp/psw-applet-$$.applescript"
+  printf '%s\n' "$2" > "$src"
   rm -rf "$dest"
-  osacompile -o "$dest" -e "$2" >/dev/null 2>&1
+  osacompile -o "$dest" "$src" >/dev/null 2>&1
+  rm -f "$src"
   if [[ -f "$3" ]]; then
     cp "$3" "$dest/Contents/Resources/applet.icns"
     codesign -f -s - "$dest" >/dev/null 2>&1
@@ -91,7 +94,11 @@ build_app() { # $1=目标名 $2=osacompile 脚本 $3=icns
   echo "   ✓ $1.app"
 }
 
-menu_script="do shell script \"G=\\\"$DST_DIR/switcher.sh\\\"; \\\"$GHOSTTY\\\" -e \\\"\$G\\\" >/dev/null 2>&1 &\""
+menu_script="try
+  do shell script \"$DST_DIR/open-menu.sh\"
+on error errMsg
+  -- open-menu.sh already displayed a dialog
+end try"
 if gen_icns menu "开关" "0.11" "0.24" "0.85" "0.22" "0.72" "0.98"; then
   build_app "代理切换" "$menu_script" "/tmp/psw-icon-menu.icns"
 else
@@ -101,7 +108,11 @@ rm -f /tmp/psw-icon-menu.icns
 
 echo "==> 3/4 生成桌面启动器"
 launch_one() { # $1=显示名 $2=tool $3=icns 名
-  local script="do shell script \"$DST_DIR/launch.sh $2 >/dev/null 2>&1\""
+  local script="try
+  do shell script \"$DST_DIR/launch.sh $2\"
+on error errMsg
+  display dialog errMsg buttons {\"OK\"} default button 1 with title \"proxy-switcher\" with icon stop
+end try"
   if [[ -f "/tmp/psw-icon-$3.icns" ]]; then
     build_app "$1" "$script" "/tmp/psw-icon-$3.icns"
   else
@@ -139,4 +150,3 @@ echo "  - 菜单：双击 $APP_DIR/代理切换.app（或终端跑 $DST_DIR/swit
 echo "  - 桌面端：双击 $APP_DIR/OpenCode 代理启动.app / Antigravity 代理启动.app"
 echo "  - CLI：新终端里用 opencode-proxy / agy-proxy"
 echo "  - 配置文件：$DST_DIR/config.json"
-killall Dock >/dev/null 2>&1 || true

@@ -13,12 +13,17 @@
 #     bundle 内的二进制，让 Electron 及其 spawn 的
 #     language_server / Node 服务继承注入的 env。
 #   * Electron 是单实例：二次启动的 env 会被转发给旧实例后退出，
-#     所以标记开启时先杀掉旧实例，强制新进程继承新环境。
+#     所以只要应用已在运行（无论标记开/关）都先杀掉旧实例，再按
+#     当前标记注入或清空代理环境后启动。
 #   * 只注入 HTTPS_PROXY/HTTP_PROXY/ALL_PROXY + NO_PROXY，
 #     不触碰全局环境变量。
 # ============================================================
 
 : "${PROXY_SWITCHER_CONFIG:=$HOME/.config/proxy-switcher/config.json}"
+SCRIPT_DIR="${0:A:h}"
+# shellcheck disable=SC1091
+# shellcheck source=lib.zsh
+. "$SCRIPT_DIR/lib.zsh"
 
 # 白屏自动恢复：LS(Go) 启动要 ~37s(playwright 404 重试+网络初始化)，
 # Electron 窗口过早加载 → 30s 超时 → 白屏定格。此函数：
@@ -26,11 +31,11 @@
 #   2. 经 CDP (remote-debugging-port) 重载窗口
 _psw_recover_white_screen() {
   local app_name="$1"
-  command -v node >/dev/null 2>&1 || { print -u2 "警告: 未找到 node，跳过白屏自动恢复（可手动 Cmd+R）"; return 0; }
+  command -v node >/dev/null 2>&1 || { print -u2 "警告: 未找到 node，无法经 CDP 自动重载窗口。白屏时请手动 Cmd+R。安装 Node ≥ 21 后即可自动恢复。"; return 0; }
   # 全局 WebSocket 需 Node >= 21（22 稳定）。旧版会 ReferenceError 静默失败，
   # 提前检测，避免恢复逻辑空转 ~90s 后才提示。
   if ! node -e 'process.exit(typeof WebSocket === "function" ? 0 : 1)' >/dev/null 2>&1; then
-    print -u2 "警告: 需要 Node >= 21（用于 CDP 重载），当前 $(node --version 2>/dev/null || echo 未知)。请手动 Cmd+R 恢复"
+    print -u2 "警告: 白屏自动恢复需要 Node ≥ 21（CDP WebSocket），当前 $(node --version 2>/dev/null || echo 未知)。跳过自动恢复，白屏时请手动 Cmd+R。"
     return 0
   fi
 
@@ -119,25 +124,6 @@ ws.onerror = () => { clearTimeout(t); process.exit(1); };
   return 0
 }
 
-_psw_config_get() {
-  python3 - "$1" "$2" <<'PY'
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-    v = d
-    for k in sys.argv[2].split("."):
-        v = v[k]
-    if isinstance(v, str):
-        print(v)
-    elif isinstance(v, bool):
-        print("true" if v else "false")
-    else:
-        print("")
-except Exception:
-    print("")
-PY
-}
-
 APP="$1"
 [[ -n "$APP" && ( "$APP" == "opencode" || "$APP" == "antigravity" ) ]] || {
   print -u2 "用法: launch.sh <opencode|antigravity>"
@@ -149,10 +135,6 @@ APP="$1"
   exit 1
 }
 
-proxy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "proxy.url")"
-no_proxy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "no_proxy")"
-[[ -z "$no_proxy" ]] && no_proxy="127.0.0.1,localhost"
-marker="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.$APP")"
 desktop="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.$APP.desktop")"
 chromium_args="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.$APP.chromiumArgs")"
 
@@ -169,34 +151,29 @@ main_pid() { ps -axo pid=,args= | awk -v p="$desktop" '$2==p {print $1; exit}'; 
 is_running() { [[ -n "$(main_pid)" ]]; }
 kill_main()  { local p; p="$(main_pid)"; [[ -n "$p" ]] && kill "$p" >/dev/null 2>&1; }
 
-if [[ -n "$marker" && -f "$HOME/$marker" ]]; then
-  print "标记开启，注入代理: $proxy"
-  # 单实例锁：先彻底退出旧实例，确保新进程继承新环境。
-  # Electron 优雅退出最长可拖 ~5s（含 LS 关闭），必须在旧进程
-  # 完全消失后再启动，否则新实例会转发给旧实例然后自己退出。
+# 单实例锁：无论标记开或关，只要旧实例还在，就先退出再拉起，
+# 否则二次启动会把请求转发给旧进程（其 env 可能与当前标记不一致）。
+# Electron 优雅退出最长可拖 ~5s（含 LS 关闭），必须在旧进程
+# 完全消失后再启动。
+if is_running; then
+  print "正在退出旧实例 $BIN_NAME（使当前标记对应的代理环境生效）..."
+  kill_main
+  # shellcheck disable=SC2168 # zsh 允许顶层 local(作用域=当前脚本),非函数内告警
+  local waited=0
+  while is_running && (( waited < 12 )); do sleep 1; ((waited++)); done
   if is_running; then
-    print "正在退出旧实例 $BIN_NAME ..."
-    kill_main
-    # shellcheck disable=SC2168 # zsh 允许顶层 local(作用域=当前脚本),非函数内告警
-    local waited=0
-    while is_running && (( waited < 12 )); do sleep 1; ((waited++)); done
-    if is_running; then
-      print "旧实例未及时退出，强制结束..."
-      # shellcheck disable=SC2168 # 同上:zsh 顶层 local 合法
-      local op; op="$(main_pid)"
-      [[ -n "$op" ]] && kill -9 "$op" >/dev/null 2>&1
-      sleep 1
-    fi
+    print "旧实例未及时退出，强制结束..."
+    # shellcheck disable=SC2168 # 同上:zsh 顶层 local 合法
+    local op; op="$(main_pid)"
+    [[ -n "$op" ]] && kill -9 "$op" >/dev/null 2>&1
+    sleep 1
   fi
-  export HTTPS_PROXY="$proxy" HTTP_PROXY="$proxy" ALL_PROXY="$proxy"
-  export NO_PROXY="$no_proxy" no_proxy="$no_proxy"
+fi
+
+if _psw_prepare_desktop_env "$APP"; then
+  print "标记开启，注入代理: $HTTPS_PROXY"
 else
   print "标记关闭，直连启动（未注入代理）"
-  if is_running; then
-    print "已在运行（直连），激活现有实例。"
-    /usr/bin/open -a "$BIN_NAME" >/dev/null 2>&1
-    exit 0
-  fi
 fi
 
 # 后台启动桌面端（继承当前 shell 的环境变量）。

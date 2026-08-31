@@ -5,7 +5,7 @@
 # 原理：
 #   每个工具在 %USERPROFILE% 下有一个标记文件（见 config.json）。
 #   开启=写标记文件；关闭=删除标记文件。启动器在启动时读取标记，
-#   只向进程环境注入 HTTPS_PROXY/HTTP_PROXY——不触碰全局/用户级变量。
+#   只向进程环境注入 HTTPS_PROXY/HTTP_PROXY/ALL_PROXY——不触碰全局/用户级变量。
 #
 # 用法：
 #   复制 config.example.json -> config.json 并修改路径。
@@ -16,24 +16,23 @@ $ErrorActionPreference = 'Stop'
 
 # ---- 配置 -------------------------------------------------
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$configPath = Join-Path $scriptDir 'config.json'
-if (-not (Test-Path -LiteralPath $configPath)) {
+. (Join-Path $scriptDir 'scripts\ProxySwitcher.ps1')
+
+try {
+    $cfg = Get-ProxySwitcherConfig
+}
+catch {
     Write-Host "未找到 config.json。请复制 config.example.json 为 config.json 并修改。" -ForegroundColor Red
     exit 1
 }
-$cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 
-$proxy   = $cfg.proxy.url
-$noProxy = if ($cfg.no_proxy) { $cfg.no_proxy } else { '127.0.0.1,localhost' }
-$ocApp   = $cfg.apps.opencode
-$agyApp  = $cfg.apps.antigravity
-$markerOc  = Join-Path $env:USERPROFILE $cfg.markers.opencode
-$markerAgy = Join-Path $env:USERPROFILE $cfg.markers.antigravity
+$proxy     = $cfg.proxy.url
+$markerOc  = Get-ProxySwitcherMarkerPath -App opencode
+$markerAgy = Get-ProxySwitcherMarkerPath -App antigravity
 
-function Test-ToolPath([string]$Path) {
-    if ($Path -like 'http*' -or $Path -notmatch '\\') { return $true } # 远程或裸命令
-    return Test-Path -LiteralPath $Path
-}
+$pwshExe = Join-Path $PSHOME 'pwsh.exe'
+if (-not (Test-Path -LiteralPath $pwshExe)) { $pwshExe = Join-Path $PSHOME 'pwsh' }
+$launcher = Join-Path $scriptDir 'launchers\launch.ps1'
 
 # ---- 辅助 -------------------------------------------------
 function Write-StatusLine {
@@ -43,13 +42,24 @@ function Write-StatusLine {
     Write-Host "  antigravity: $agy"
 }
 
-function Set-ProxyEnv {
-    $env:HTTPS_PROXY = $proxy
-    $env:HTTP_PROXY  = $proxy
-    # 豁免回环：选项 5/6 通过 Start-Process 启动 Electron 桌面端，
-    # 否则 Chromium 会把本地回环请求也走代理。
-    $env:NO_PROXY = $noProxy
-    $env:no_proxy = $noProxy
+function Invoke-DesktopLauncher {
+    param([ValidateSet('opencode', 'antigravity')][string]$App)
+    & $pwshExe -NoProfile -ExecutionPolicy Bypass -File $launcher -App $App -Mode desktop
+}
+
+function Invoke-CliInWindow {
+    param(
+        [ValidateSet('opencode', 'antigravity')][string]$App,
+        [string]$MarkerPath
+    )
+    Set-Content -LiteralPath $MarkerPath -Value $proxy
+    try {
+        $cli = Resolve-ProxySwitcherCli -App $App
+        Invoke-ProxySwitcherCommand -App $App -CommandPath $cli
+    }
+    catch {
+        Write-Host $_ -ForegroundColor Red
+    }
 }
 
 # ============================================================
@@ -77,14 +87,14 @@ while ($true) {
             Set-Content -LiteralPath $markerOc -Value $proxy
             Write-Host ""
             Write-Host "[OK] opencode 代理已开启 (CLI + 桌面)"
-            Write-Host "     新终端里运行 'opencode' 将走代理"
+            Write-Host "     新终端里运行 'opencode-proxy' 将走代理"
             Read-Host "按回车返回"
         }
         "2" {
             Set-Content -LiteralPath $markerAgy -Value $proxy
             Write-Host ""
             Write-Host "[OK] antigravity 代理已开启 (CLI + 桌面)"
-            Write-Host "     新终端里运行 'agy' 将走代理"
+            Write-Host "     新终端里运行 'agy-proxy' 将走代理"
             Read-Host "按回车返回"
         }
         "3" {
@@ -100,48 +110,34 @@ while ($true) {
             Read-Host "按回车返回"
         }
         "5" {
-            Set-Content -LiteralPath $markerOc -Value $proxy
-            Set-ProxyEnv
-            if (-not (Test-ToolPath $ocApp.desktop)) {
-                Write-Host "未找到桌面端程序: $($ocApp.desktop)" -ForegroundColor Red
-                Read-Host "按回车返回"
-                break
-            }
             Write-Host ""
-            Write-Host "正在以代理模式启动 opencode 桌面端..."
-            Start-Process -FilePath $ocApp.desktop
-            Read-Host "已启动。按回车返回"
+            Write-Host "正在启动 opencode 桌面端（按标记注入代理）..."
+            Write-Host ""
+            Invoke-DesktopLauncher -App opencode
+            Write-Host ""
+            Read-Host "按回车返回"
         }
         "6" {
-            Set-Content -LiteralPath $markerAgy -Value $proxy
-            Set-ProxyEnv
-            if (-not (Test-ToolPath $agyApp.desktop)) {
-                Write-Host "未找到桌面端程序: $($agyApp.desktop)" -ForegroundColor Red
-                Read-Host "按回车返回"
-                break
-            }
             Write-Host ""
-            Write-Host "正在以代理模式启动 Antigravity 桌面端..."
-            Start-Process -FilePath $agyApp.desktop
-            Read-Host "已启动。按回车返回"
+            Write-Host "正在启动 Antigravity 桌面端（按标记注入代理）..."
+            Write-Host ""
+            Invoke-DesktopLauncher -App antigravity
+            Write-Host ""
+            Read-Host "按回车返回"
         }
         "7" {
-            Set-Content -LiteralPath $markerOc -Value $proxy
-            Set-ProxyEnv
             Write-Host ""
             Write-Host "正在以代理模式启动 opencode CLI（退出后返回）..."
             Write-Host ""
-            & $ocApp.cli
+            Invoke-CliInWindow -App opencode -MarkerPath $markerOc
             Write-Host ""
             Read-Host "opencode CLI 已退出。按回车返回"
         }
         "8" {
-            Set-Content -LiteralPath $markerAgy -Value $proxy
-            Set-ProxyEnv
             Write-Host ""
             Write-Host "正在以代理模式启动 Antigravity CLI（退出后返回）..."
             Write-Host ""
-            & $agyApp.cli
+            Invoke-CliInWindow -App antigravity -MarkerPath $markerAgy
             Write-Host ""
             Read-Host "agy CLI 已退出。按回车返回"
         }

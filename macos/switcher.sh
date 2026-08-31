@@ -16,28 +16,12 @@
 
 : "${PROXY_SWITCHER_CONFIG:=$HOME/.config/proxy-switcher/config.json}"
 
-# launch.sh 与本脚本同目录安装；按脚本自身位置解析，不硬编码
+# launch.sh / lib.zsh 与本脚本同目录安装；按脚本自身位置解析，不硬编码
 # ~/.config/proxy-switcher，自定义目录布局（仓库内直接运行等）也能找到。
 SCRIPT_DIR="${0:A:h}"
-
-_psw_config_get() {
-  python3 - "$1" "$2" <<'PY'
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-    v = d
-    for k in sys.argv[2].split("."):
-        v = v[k]
-    if isinstance(v, str):
-        print(v)
-    elif isinstance(v, bool):
-        print("true" if v else "false")
-    else:
-        print("")
-except Exception:
-    print("")
-PY
-}
+# shellcheck disable=SC1091
+# shellcheck source=lib.zsh
+. "$SCRIPT_DIR/lib.zsh"
 
 [[ -f "$PROXY_SWITCHER_CONFIG" ]] || {
   print -u2 "错误：找不到配置文件 $PROXY_SWITCHER_CONFIG"
@@ -45,10 +29,12 @@ PY
 }
 
 proxy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "proxy.url")"
-no_proxy_default="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "no_proxy")"
-[[ -z "$no_proxy_default" ]] && no_proxy_default="127.0.0.1,localhost"
 marker_oc="$( _psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.opencode")"
 marker_agy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.antigravity")"
+cli_oc="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.opencode.cli")"
+cli_agy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.antigravity.cli")"
+[[ -z "$cli_oc" ]] && cli_oc="opencode"
+[[ -z "$cli_agy" ]] && cli_agy="agy"
 [[ -n "$marker_oc" && -n "$marker_agy" && -n "$proxy" ]] || {
   print -u2 "错误：config.json 缺少 markers/proxy.url 配置项"
   exit 1
@@ -132,9 +118,7 @@ while true; do
       print ""
       print "正在以代理模式启动 opencode CLI（退出后返回）..."
       print ""
-      HTTPS_PROXY="$proxy" HTTP_PROXY="$proxy" ALL_PROXY="$proxy" \
-      NO_PROXY="$no_proxy_default" no_proxy="$no_proxy_default" \
-        command opencode
+      _psw_run_with_marker opencode command "$cli_oc"
       print ""
       read -r "?opencode CLI 已退出。按回车返回"
       ;;
@@ -143,9 +127,7 @@ while true; do
       print ""
       print "正在以代理模式启动 Antigravity CLI（退出后返回）..."
       print ""
-      HTTPS_PROXY="$proxy" HTTP_PROXY="$proxy" ALL_PROXY="$proxy" \
-      NO_PROXY="$no_proxy_default" no_proxy="$no_proxy_default" \
-        command agy
+      _psw_run_with_marker antigravity command "$cli_agy"
       print ""
       read -r "?agy CLI 已退出。按回车返回"
       ;;

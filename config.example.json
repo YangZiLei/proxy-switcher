@@ -11,12 +11,12 @@
   },
   "apps": {
     "opencode": {
-      "desktop": "C:\\Users\\<USERNAME>\\AppData\\Local\\Programs\\@opencode-aidesktop\\OpenCode.exe",
+      "desktop": "%LOCALAPPDATA%\\Programs\\@opencode-aidesktop\\OpenCode.exe",
       "cli": "opencode",
       "comment": "Desktop = Electron GUI; cli = command run in terminal"
     },
     "antigravity": {
-      "desktop": "C:\\Users\\<USERNAME>\\AppData\\Local\\Programs\\antigravity\\Antigravity.exe",
+      "desktop": "%LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe",
       "cli": "agy",
       "comment": "Antigravity desktop is Electron; its language_server subprocess honors HTTPS_PROXY"
     }

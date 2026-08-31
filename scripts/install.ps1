@@ -5,8 +5,16 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $configPath = Join-Path $root 'config.json'
-if (-not (Test-Path -LiteralPath $configPath)) {
-    throw "config.json not found. Copy config.example.json and edit it first."
+$examplePath = Join-Path $root 'config.example.json'
+
+function Copy-ProxySwitcherConfig {
+    if (-not (Test-Path -LiteralPath $examplePath)) {
+        throw "config.example.json not found at $examplePath"
+    }
+    $raw = Get-Content -LiteralPath $examplePath -Raw
+    $escaped = $env:LOCALAPPDATA.Replace('\', '\\')
+    $raw = $raw.Replace('%LOCALAPPDATA%', $escaped)
+    Set-Content -LiteralPath $configPath -Value $raw -Encoding utf8
 }
 
 $programs = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\proxy-switcher'
@@ -17,8 +25,19 @@ $shortcuts = @(
 )
 
 if ($WhatIf) {
+    if (-not (Test-Path -LiteralPath $configPath)) {
+        "Would create: $configPath from config.example.json (expand %LOCALAPPDATA%)"
+    }
     $shortcuts | ForEach-Object { "Would create: $(Join-Path $programs $_.Name) -> $($_.Target)" }
     exit 0
+}
+
+if (-not (Test-Path -LiteralPath $configPath)) {
+    Copy-ProxySwitcherConfig
+    Write-Host "Generated config.json from example (desktop paths under LOCALAPPDATA). Edit proxy.url if needed."
+}
+else {
+    Write-Host "config.json already exists, skipping."
 }
 
 New-Item -ItemType Directory -Path $programs -Force | Out-Null

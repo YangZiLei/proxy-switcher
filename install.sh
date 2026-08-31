@@ -4,14 +4,14 @@
 #
 # 统一入口:检测平台后调用各平台已有安装器,并打印验证方式。
 #   macOS   → macos/install.sh    (生成 .app + 图标 + 可选挂载 zsh 函数)
-#   Windows → scripts/install.ps1 (创建开始菜单快捷方式)
+#   Windows → scripts/install.ps1 (生成 config.json + 开始菜单快捷方式)
 #
 # 用法:
 #   仓库内:
 #     ./install.sh                     # macOS 默认安装
 #     ./install.sh --with-zshrc        # macOS + 挂载 opencode-proxy/agy-proxy 到 ~/.zshrc
 #
-#   发布后(curl | sh 管道模式,默认从本仓库克隆,可用 PROXY_SWITCHER_REPO_URL 覆盖):
+#   发布后(curl | sh 管道模式,仅 macOS;可用 PROXY_SWITCHER_REPO_URL 覆盖):
 #     curl -fsSL https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/install.sh | sh
 #
 # 幂等:重复执行安全(平台安装器内部已处理 config.json / .zshrc 已存在等情况)。
@@ -34,20 +34,39 @@ detect_os() {
   esac
 }
 
+with_zshrc=0
+for arg in "$@"; do
+  case "$arg" in
+    --with-zshrc) with_zshrc=1 ;;
+  esac
+done
+
 print_verify() {
+  platform=$1
   echo ""
   echo "================================================"
   echo "  安装完成。如何验证:"
   echo "  --------------------------------------------------"
-  echo "  1. 新开一个终端"
-  echo "  2. 执行  type opencode-proxy  和  type agy-proxy"
-  echo "     —— 应显示为函数定义(而非 'command not found')"
-  echo "  3. 执行  opencode-proxy        —— 应能正常启动 opencode"
-  echo "  --------------------------------------------------"
-  echo "  说明:CLI 代理注入函数来自 profile.zsh /"
-  echo "       profile-functions.ps1,需先完成对应平台的挂载步骤"
-  echo "       (macOS: install.sh --with-zshrc;"
-  echo "        Windows: dot-source profile-functions.ps1)"
+  case "$platform" in
+    macos)
+      echo "  1. 双击 ~/Applications/代理切换.app（或跑 ~/.config/proxy-switcher/switcher.sh）"
+      echo "  2. 双击 OpenCode / Antigravity 代理启动.app 启动桌面端"
+      if [ "$with_zshrc" -eq 1 ]; then
+        echo "  3. 新开一个终端，执行  type opencode-proxy  和  type agy-proxy"
+        echo "     —— 应显示为函数定义(而非 'command not found')"
+      else
+        echo "  3. CLI 函数未挂载。若需要 opencode-proxy / agy-proxy，请再跑："
+        echo "       ./install.sh --with-zshrc"
+      fi
+      ;;
+    windows)
+      echo "  1. 开始菜单中应出现 Proxy Switcher / OpenCode / Antigravity 快捷方式"
+      echo "  2. 双击 switcher.bat 或上述快捷方式，菜单 [1]–[4] 切换标记，[5]/[6] 启动桌面端"
+      echo "  3. （可选）在 PowerShell 配置文件中 dot-source profile\\profile-functions.ps1"
+      echo "     之后新开 pwsh，使用 opencode-proxy / agy-proxy（不覆盖 opencode / agy）"
+      echo "  4. 按需编辑仓库内 config.json 的 proxy.url 与桌面端路径"
+      ;;
+  esac
   echo "================================================"
 }
 
@@ -74,25 +93,26 @@ case "$(detect_os)" in
       git clone --depth 1 "$REPO_URL" "$TMP_DIR/proxy-switcher"
       zsh "$TMP_DIR/proxy-switcher/macos/install.sh" "$@"
     fi
-    print_verify
+    print_verify macos
     ;;
   windows)
-    # Windows 侧 install.ps1 已覆盖开始菜单快捷方式创建,此处只做入口统一
-    if [ -f "$SCRIPT_DIR/scripts/install.ps1" ]; then
-      PS1_SCRIPT="$SCRIPT_DIR/scripts/install.ps1"
-    else
-      REPO_URL="${PROXY_SWITCHER_REPO_URL:-$DEFAULT_REPO_URL}"
-      TMP_DIR=$(mktemp -d)
-      echo "==> 克隆仓库: $REPO_URL"
-      git clone --depth 1 "$REPO_URL" "$TMP_DIR/proxy-switcher"
-      PS1_SCRIPT="$TMP_DIR/proxy-switcher/scripts/install.ps1"
+    # 快捷方式必须指向本仓库内脚本;管道/临时克隆装完即删，无法工作。
+    if [ ! -f "$SCRIPT_DIR/scripts/install.ps1" ]; then
+      echo "Windows 不支持 curl | sh 管道安装（快捷方式需要指向本仓库里的脚本）。" >&2
+      echo "请先克隆仓库，再生成配置并安装：" >&2
+      echo "  git clone ${DEFAULT_REPO_URL}" >&2
+      echo "  cd proxy-switcher" >&2
+      echo "  pwsh -File scripts/install.ps1" >&2
+      exit 1
     fi
-    # Git Bash/MSYS 的 POSIX 路径(如 /e/...)必须转成 Windows 原生路径,
-    # 否则 powershell.exe -File 找不到脚本;sh 层参数(如 --with-zshrc)与
-    # install.ps1 的 -WhatIf 不通用,故不向下透传。
-    PS1_SCRIPT_WIN=$(cygpath -w "$PS1_SCRIPT" 2>/dev/null || printf '%s' "$PS1_SCRIPT")
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PS1_SCRIPT_WIN"
-    print_verify
+    if ! command -v pwsh >/dev/null 2>&1; then
+      echo "需要 PowerShell 7 (pwsh)。Windows PowerShell 5 (powershell.exe) 不能用来跑本安装器。" >&2
+      echo "安装 pwsh 后在仓库根目录执行: pwsh -File scripts/install.ps1" >&2
+      exit 1
+    fi
+    PS1_SCRIPT_WIN=$(cygpath -w "$SCRIPT_DIR/scripts/install.ps1" 2>/dev/null || printf '%s' "$SCRIPT_DIR/scripts/install.ps1")
+    pwsh -NoProfile -ExecutionPolicy Bypass -File "$PS1_SCRIPT_WIN"
+    print_verify windows
     ;;
   *)
     echo "不支持的平台:$(uname -s) (仅支持 macOS / Windows)" >&2
