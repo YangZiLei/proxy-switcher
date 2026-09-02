@@ -89,14 +89,17 @@ switch ($Mode) {
             exit 1
         }
         Stop-DesktopInstance -ExePath $appCfg.desktop
-        $mode = if (Test-Path -LiteralPath $marker) { 'inject' } else { 'clear' }
-        if ($mode -eq 'inject') {
+        # NOTE: do NOT name this local var $mode — it collides with the $Mode
+        # parameter (PowerShell is case-insensitive), and assigning to a
+        # [ValidateSet] parameter re-runs validation and throws.
+        $injectMode = if (Test-Path -LiteralPath $marker) { 'inject' } else { 'clear' }
+        if ($injectMode -eq 'inject') {
             Write-Host "Marker on, launching with proxy: $($cfg.proxy.url)"
         }
         else {
             Write-Host "Marker off, launching direct (no proxy env)."
         }
-        Invoke-WithProxySwitcherEnv -Mode $mode -Action {
+        Invoke-WithProxySwitcherEnv -Mode $injectMode -Action {
             param($Desktop)
             Start-Process -FilePath $Desktop
         } -ArgumentList $appCfg.desktop
