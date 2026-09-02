@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Windows `launch.ps1`: rename desktop inject flag to `$injectMode` so it does not collide with the `[ValidateSet]` `$Mode` parameter (PowerShell is case-insensitive; the old `$mode` assignment re-validated and crashed options 5/6).
+- Menus on Windows and macOS use the same single-page layout grouped by tool (odd numbers = opencode, even = Antigravity). Key numbers are unchanged.
 - Windows menu [5]/[6] call `launchers/launch.ps1` and **respect the marker** (no longer force-enable). Recoverable errors return to the menu instead of `break`.
 - Desktop launchers on Windows and macOS quit a running instance and wait (up to 12s, then force) so proxy on **or** off matches the current marker. Marker-off starts without inheriting leaked proxy env.
 - Windows injects `ALL_PROXY` together with `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` / `no_proxy`.

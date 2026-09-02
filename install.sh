@@ -61,7 +61,7 @@ print_verify() {
       ;;
     windows)
       echo "  1. 开始菜单中应出现 Proxy Switcher / OpenCode / Antigravity 快捷方式"
-      echo "  2. 双击 switcher.bat 或上述快捷方式，菜单 [1]–[4] 切换标记，[5]/[6] 启动桌面端"
+      echo "  2. 双击 switcher.bat 或上述快捷方式；奇数项是 opencode，偶数项是 Antigravity"
       echo "  3. （可选）在 PowerShell 配置文件中 dot-source profile\\profile-functions.ps1"
       echo "     之后新开 pwsh，使用 opencode-proxy / agy-proxy（不覆盖 opencode / agy）"
       echo "  4. 按需编辑仓库内 config.json 的 proxy.url 与桌面端路径"

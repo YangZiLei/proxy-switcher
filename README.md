@@ -90,25 +90,29 @@ pwsh -File scripts/install.ps1   # 若无 config.json 则从 example 生成（�
 ## Windows 安装与使用
 
 1. **安装**：`pwsh -File scripts/install.ps1`。若仓库里还没有 `config.json`，会从 `config.example.json` 复制并展开 `%LOCALAPPDATA%` 桌面路径；按需改 `proxy.url`。然后创建开始菜单快捷方式。
-2. **启动菜单**：双击 `switcher.bat`（或 `pwsh -File switcher.ps1`）。依赖 PowerShell 7：
+2. **启动菜单**：双击 `switcher.bat`（或 `pwsh -File switcher.ps1`）。依赖 PowerShell 7。macOS 主菜单排版与数字相同。
 
    ```powershell
    pwsh --version
    ```
 
    ```
-   [1] 开启 opencode 代理 (CLI + 桌面)
-   [2] 开启 antigravity 代理 (CLI + 桌面)
-   [3] 关闭 opencode 代理 (直连)
-   [4] 关闭 antigravity 代理 (直连)
-   [5] 启动 opencode 桌面端 (按标记注入代理)
-   [6] 启动 Antigravity 桌面端 (按标记注入代理)
-   [7] 开启代理并启动 opencode CLI (本窗口)
-   [8] 开启代理并启动 Antigravity CLI (本窗口)
+   ── opencode ──────────────────────
+   [1] 开启 代理 (CLI + 桌面)
+   [3] 关闭 代理 (直连)
+   [5] 启动 桌面端 (按标记注入代理)
+   [7] 开启代理并启动 CLI (本窗口)
+
+   ── Antigravity ───────────────────
+   [2] 开启 代理 (CLI + 桌面)
+   [4] 关闭 代理 (直连)
+   [6] 启动 桌面端 (按标记注入代理)
+   [8] 开启代理并启动 CLI (本窗口)
+
    [9] 退出
    ```
 
-   [1]–[4] 只切换标记。[5]/[6] **不改标记**，交给 `launch.ps1`：有标记则注入代理（含 `ALL_PROXY`），无标记则直连启动；若应用已在运行则先退出再拉起。[7]/[8] 仍会先开标记，并在本窗口用同一套注入助手跑 CLI，退出后恢复环境。
+   数字与旧版相同（奇数 opencode、偶数 Antigravity）。[1]–[4] 只切换标记。[5]/[6] **不改标记**，交给启动器：有标记则注入代理（含 `ALL_PROXY`），无标记则直连启动；若应用已在运行则先退出再拉起。[7]/[8] **会先开标记**再在本窗口跑 CLI，退出后恢复环境。
 
 3. **（推荐）把桌面端快捷方式指向启动器**：开始菜单 `OpenCode.lnk` / `Antigravity.lnk` → 目标改为 `launchers/xxx-launch.bat`（应用更新有时会重置快捷方式，需重新指向）
 4. **（可选）装 profile 函数**：把 `profile/profile-functions.ps1` dot-source 进 PowerShell profile，使用独立命令 `opencode-proxy` / `agy-proxy`，不覆盖你已有的 `opencode`/`agy`
@@ -149,7 +153,7 @@ cd macos
 
 | 场景 | 操作 |
 |------|------|
-| 开关代理 | 双击 `代理切换.app`（或 `~/.config/proxy-switcher/switcher.sh`）→ `[1]/[2]` 开，`[3]/[4]` 关 |
+| 开关代理 | 双击 `代理切换.app`（或 `~/.config/proxy-switcher/switcher.sh`）；菜单与 Windows 相同：奇数 opencode、偶数 Antigravity，`[1]/[2]` 开、`[3]/[4]` 关 |
 | Antigravity CLI | 新终端 `agy-proxy ...` |
 | opencode CLI | 新终端 `opencode-proxy ...` |
 | Antigravity 桌面端 | 双击 `Antigravity 代理启动.app`（自动注入 + 白屏恢复） |

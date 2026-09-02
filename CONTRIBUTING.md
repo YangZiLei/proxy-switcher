@@ -30,10 +30,11 @@ pwsh -File scripts/validate.ps1
 
 Manual checks that matter:
 
-1. Menu [1]–[4] only toggle marker files; they do not launch apps.
-2. Menu [5]/[6] respect the marker (do not force-enable) and return to the menu on missing desktop paths.
-3. With the desktop app already running, flip the marker and launch again — the old instance should quit and the new one should match the marker (proxy on **or** off).
-4. `opencode-proxy` / `agy-proxy` do not leave proxy vars in the current shell after the command exits.
+1. Menu layout is grouped by tool (odd = opencode, even = Antigravity) on **both** platforms. Keep the numbers.
+2. Menu [1]–[4] only toggle marker files; they do not launch apps.
+3. Menu [5]/[6] respect the marker (do not force-enable) and return to the menu on missing desktop paths. [7]/[8] still force-enable the marker, then run CLI in-window.
+4. With the desktop app already running, flip the marker and launch again — the old instance should quit and the new one should match the marker (proxy on **or** off).
+5. `opencode-proxy` / `agy-proxy` do not leave proxy vars in the current shell after the command exits.
 
 ## PRs
 
