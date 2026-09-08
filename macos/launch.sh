@@ -171,7 +171,7 @@ if is_running; then
 fi
 
 if _psw_prepare_desktop_env "$APP"; then
-  print "标记开启，注入代理: $HTTPS_PROXY"
+  print "标记开启，注入代理: $HTTPS_PROXY (来源: $_PSW_PROXY_SOURCE)"
 else
   print "标记关闭，直连启动（未注入代理）"
 fi
