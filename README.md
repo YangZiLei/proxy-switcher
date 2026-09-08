@@ -68,6 +68,7 @@ pwsh -File scripts/install.ps1   # 若无 config.json 则从 example 生成（�
 - **标记文件在用户主目录**：任何目录下都生效，不污染项目仓库
 - **只影响新进程**：已打开的终端需重启才生效；**桌面端**由启动器在检测到已运行实例时先退出再拉起，使当前标记生效（进程环境变量机制使然）
 - **统一注入 `NO_PROXY=127.0.0.1,localhost`**：`HTTPS_PROXY` 注入后必须豁免回环，否则 Electron UI 加载本地页面也会走代理 → 白屏（详见下方"白屏"章节）。默认值如左；两个平台的 `config.json` 都可用 `no_proxy` 键覆盖（缺省时回落到 `127.0.0.1,localhost`）
+- **代理端口自动探测**：开启/启动时先验证 `proxy.url` 是否存活，否则依次尝试**系统代理**（代理软件的"系统代理"开关开着就能读到，Windows 读注册表，macOS 读 `scutil --proxy`），再扫描常见本机 HTTP 端口（7897/7890/7892/7893/7899/7895/10809/2080/2081/8080/20171/20172）。换代理软件通常**零改配置**；菜单顶部会显示实际注入的地址与来源（config/system/probe/marker）。换软件后也可用菜单 **[0] 探测本机代理端口**手动确认并写回 `config.json`。可选配置：`proxy.auto_detect`（默认 true，设 false 则回到写死行为）、`proxy.candidates`（完整 URL 数组）、`proxy.candidate_ports`（端口数组）
 - **代理变量集合**：标记开启时注入 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY` / `no_proxy`（Windows 与 macOS 相同）
 - **CLI 注入只作用于子进程**：`opencode-proxy` / `agy-proxy` 用临时环境前缀（zsh）/ try+finally 清理（PowerShell）注入，命令退出后当前终端不会残留代理变量
 

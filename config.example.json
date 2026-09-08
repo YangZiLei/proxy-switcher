@@ -1,7 +1,11 @@
 {
   "proxy": {
     "url": "http://127.0.0.1:7892",
-    "comment": "Your local proxy (FastLink / Clash / v2rayN etc.)"
+    "comment": "Your local proxy (FastLink / Clash / v2rayN etc.). url is the preferred address; with auto_detect on, the switcher verifies it at launch and otherwise falls back to the OS system proxy, then scans common local ports — no manual edit needed when you swap proxy apps",
+    "auto_detect": true,
+    "candidates": [],
+    "candidate_ports": [],
+    "candidates_comment": "Optional extras, e.g. candidates: [\"http://127.0.0.1:18080\"], candidate_ports: [18080]. Built-in scan already covers 7897/7890/7892/7893/7899/7895/10809/2080/2081/8080/20171/20172"
   },
   "no_proxy": "127.0.0.1,localhost",
   "markers": {

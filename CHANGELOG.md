@@ -4,6 +4,8 @@
 
 - Windows `launch.ps1`: rename desktop inject flag to `$injectMode` so it does not collide with the `[ValidateSet]` `$Mode` parameter (PowerShell is case-insensitive; the old `$mode` assignment re-validated and crashed options 5/6).
 - Menus on Windows and macOS use the same single-page layout grouped by tool (odd numbers = opencode, even = Antigravity). Key numbers are unchanged.
+- Proxy port auto-detect: enabling/launching first verifies `proxy.url`, then falls back to the OS system proxy (Windows registry / macOS `scutil --proxy`), then scans common local HTTP ports (7897/7890/7892/7893/7899/7895/10809/2080/2081/8080/20171/20172). Swapping proxy apps no longer requires editing `config.json`. Menu shows the resolved address and its source; new `[0]` picker lists reachable proxies and can save the choice to `config.json`. Optional `proxy.auto_detect` (default true), `proxy.candidates`, `proxy.candidate_ports`.
+
 - Windows menu [5]/[6] call `launchers/launch.ps1` and **respect the marker** (no longer force-enable). Recoverable errors return to the menu instead of `break`.
 - Desktop launchers on Windows and macOS quit a running instance and wait (up to 12s, then force) so proxy on **or** off matches the current marker. Marker-off starts without inheriting leaked proxy env.
 - Windows injects `ALL_PROXY` together with `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` / `no_proxy`.
