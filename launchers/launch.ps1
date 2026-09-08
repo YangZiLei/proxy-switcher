@@ -93,8 +93,11 @@ switch ($Mode) {
         # parameter (PowerShell is case-insensitive), and assigning to a
         # [ValidateSet] parameter re-runs validation and throws.
         $injectMode = if (Test-Path -LiteralPath $marker) { 'inject' } else { 'clear' }
+        $effUrl = ''
         if ($injectMode -eq 'inject') {
-            Write-Host "Marker on, launching with proxy: $($cfg.proxy.url)"
+            $eff = Get-ProxySwitcherEffectiveProxyUrl -App $App
+            $effUrl = $eff.Url
+            Write-Host "Marker on, launching with proxy: $effUrl (来源: $($eff.Source))"
         }
         else {
             Write-Host "Marker off, launching direct (no proxy env)."
@@ -102,7 +105,7 @@ switch ($Mode) {
         Invoke-WithProxySwitcherEnv -Mode $injectMode -Action {
             param($Desktop)
             Start-Process -FilePath $Desktop
-        } -ArgumentList $appCfg.desktop
+        } -ArgumentList $appCfg.desktop -ProxyUrl $effUrl
     }
     'cli' {
         $cli = Resolve-ProxySwitcherCli -App $App

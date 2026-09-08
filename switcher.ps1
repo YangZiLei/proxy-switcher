@@ -26,9 +26,64 @@ catch {
     exit 1
 }
 
-$proxy     = $cfg.proxy.url
+$proxyCfg   = $cfg.proxy.url
 $markerOc  = Get-ProxySwitcherMarkerPath -App opencode
 $markerAgy = Get-ProxySwitcherMarkerPath -App antigravity
+
+function Get-ResolvedProxyForMenu {
+    try { Resolve-ProxySwitcherUrl }
+    catch { [pscustomobject]@{ Url = $proxyCfg; Source = 'config'; Reachable = $false } }
+}
+
+function Enable-ProxySwitcherMarker {
+    param(
+        [ValidateSet('opencode', 'antigravity')][string]$App,
+        [string]$MarkerPath
+    )
+    $r = Get-ResolvedProxyForMenu
+    Set-Content -LiteralPath $MarkerPath -Value $r.Url
+    if ($r.Reachable) {
+        Write-Host ""
+        Write-Host "[OK] $App 代理已开启 (CLI + 桌面)"
+        Write-Host "     地址: $($r.Url) (来源: $($r.Source))"
+    }
+    else {
+        Write-Host ""
+        Write-Host "[WARN] 未探测到可用代理，已按配置写入 $($r.Url)，启动时将直连失败回退。" -ForegroundColor Yellow
+        Write-Host "      请确认代理软件已启动，或用 [0] 探测端口后重试。"
+    }
+}
+
+function Select-ProxySwitcherUrl {
+    Write-Host ""
+    Write-Host "正在探测本机代理 (配置 > 系统代理 > 常见端口)..."
+    $found = @(Find-ProxySwitcherAvailable)
+    if ($found.Count -eq 0) {
+        Write-Host "[FAIL] 未发现任何可用代理端口。" -ForegroundColor Red
+        Write-Host "       请先启动代理软件（Clash / FastLink / v2rayN 等），或确认它监听 127.0.0.1。"
+        Read-Host "按回车返回"
+        return
+    }
+    Write-Host "发现以下可用代理："
+    for ($i = 0; $i -lt $found.Count; $i++) {
+        Write-Host ("  [{0}] {1}  (来源: {2})" -f ($i + 1), $found[$i].Url, $found[$i].Source)
+    }
+    Write-Host "  [0] 取消"
+    $sel = Read-Host "选择要写入 config.json 的地址序号"
+    if ($sel -match '^\d+$' -and [int]$sel -ge 1 -and [int]$sel -le $found.Count) {
+        $picked = $found[[int]$sel - 1].Url
+        $cfgPath = Get-ProxySwitcherConfigPath
+        $raw = Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json
+        $raw.proxy.url = $picked
+        $raw | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $cfgPath -Encoding utf8
+        $script:cfg = Get-ProxySwitcherConfig
+        Write-Host "[OK] 已将代理地址设为 $picked" -ForegroundColor Green
+    }
+    else {
+        Write-Host "已取消，未修改。"
+    }
+    Read-Host "按回车返回"
+}
 
 $pwshExe = Join-Path $PSHOME 'pwsh.exe'
 if (-not (Test-Path -LiteralPath $pwshExe)) { $pwshExe = Join-Path $PSHOME 'pwsh' }
@@ -52,7 +107,9 @@ function Invoke-CliInWindow {
         [ValidateSet('opencode', 'antigravity')][string]$App,
         [string]$MarkerPath
     )
-    Set-Content -LiteralPath $MarkerPath -Value $proxy
+    $r = Get-ResolvedProxyForMenu
+    Set-Content -LiteralPath $MarkerPath -Value $r.Url
+    Write-Host "     地址: $($r.Url) (来源: $($r.Source))"
     try {
         $cli = Resolve-ProxySwitcherCli -App $App
         Invoke-ProxySwitcherCommand -App $App -CommandPath $cli
@@ -65,10 +122,11 @@ function Invoke-CliInWindow {
 # ============================================================
 while ($true) {
     try { Clear-Host } catch { }
+    $menuProxy = Get-ResolvedProxyForMenu
     Write-Host "================================================"
     Write-Host "  AI Agent 代理切换器 (Windows)"
     Write-Host "   (opencode / Antigravity 按工具独立控制)"
-    Write-Host "   代理: $proxy"
+    Write-Host "   代理: $($menuProxy.Url) (来源: $($menuProxy.Source))"
     Write-Host "================================================"
     Write-StatusLine
     Write-Host ""
@@ -84,20 +142,21 @@ while ($true) {
     Write-Host "  [6] 启动 桌面端 (按标记注入代理)"
     Write-Host "  [8] 开启代理并启动 CLI (本窗口)"
     Write-Host ""
+    Write-Host "  [0] 探测本机代理端口 (换代理软件后用这个)"
+    Write-Host ""
     Write-Host "  [9] 退出"
     $choice = Read-Host "请选择"
     switch ($choice) {
+        "0" {
+            Select-ProxySwitcherUrl
+        }
         "1" {
-            Set-Content -LiteralPath $markerOc -Value $proxy
-            Write-Host ""
-            Write-Host "[OK] opencode 代理已开启 (CLI + 桌面)"
+            Enable-ProxySwitcherMarker -App opencode -MarkerPath $markerOc
             Write-Host "     新终端里运行 'opencode-proxy' 将走代理"
             Read-Host "按回车返回"
         }
         "2" {
-            Set-Content -LiteralPath $markerAgy -Value $proxy
-            Write-Host ""
-            Write-Host "[OK] antigravity 代理已开启 (CLI + 桌面)"
+            Enable-ProxySwitcherMarker -App antigravity -MarkerPath $markerAgy
             Write-Host "     新终端里运行 'agy-proxy' 将走代理"
             Read-Host "按回车返回"
         }
