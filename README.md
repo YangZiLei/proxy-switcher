@@ -79,7 +79,7 @@ pwsh -File scripts/install.ps1   # 若无 config.json 则从 example 生成（�
 | 维度 | Windows | macOS |
 |------|---------|-------|
 | 运行时 | PowerShell 7（`pwsh`）+ `.bat` | zsh 脚本（零依赖，无需安装任何东西） |
-| 菜单入口 | `switcher.bat`（双击） | `macos/install.sh` 生成 `代理切换.app`（双击；自动选 Ghostty / iTerm / Kitty / Terminal.app） |
+| 菜单入口 | `switcher.bat`（双击） | `macos/install.sh` 生成 `代理切换.command`（双击；自动选 Ghostty / iTerm / Kitty / Terminal.app） |
 | CLI 注入 | `profile/profile-functions.ps1` → `opencode-proxy`/`agy-proxy`（CLI 路径来自 `config.json` / PATH） | `macos/profile.zsh` → `opencode-proxy`/`agy-proxy` |
 | 桌面端启动 | `Start-Process`（子进程继承环境变量）；菜单 [5]/[6] 调用 `launchers/launch.ps1`，**按标记**注入（不强制开标记） | 直接 exec bundle 内二进制（`open -a` 不传 env），注入后 spawn 的 `language_server` 继承 |
 | 单实例 | 启动器按桌面 exe 路径找主进程（排除 `--type=` 的 Helper），退出并等待后再拉起 | 按 argv[0] 精确匹配主进程，退出并等待（最长 12s + SIGKILL）后再拉起 |
@@ -142,23 +142,25 @@ cd macos
 `install.sh` 会：
 1. 复制 `switcher.sh` / `launch.sh` / `profile.zsh` / `lib.zsh` / `open-menu.sh` 到 `~/.config/proxy-switcher/`
 2. 生成 `config.json`（首次，按需改代理地址；默认 `http://127.0.0.1:7892`）
-3. 生成三个带图标的双击启动器到 `~/Applications/`：
-   - **代理切换.app**（自动选择 Ghostty / iTerm / Kitty / Terminal.app 打开主菜单）
-   - **OpenCode 代理启动.app**
-   - **Antigravity 代理启动.app**
+3. 生成三个双击启动器（`.command` 文件）到 `~/Applications/`：
+   - **代理切换.command**（自动选择 Ghostty / iTerm / Kitty / Terminal.app 打开主菜单）
+   - **OpenCode 代理启动.command**
+   - **Antigravity 代理启动.command**
 4. （可选）把 `profile.zsh` 追加进 `~/.zshrc`
 
 > 菜单应用按顺序检测终端，也可用环境变量 `PROXY_SWITCHER_TERMINAL` 覆盖（可执行文件路径，或传给 `open -na` 的应用名）。找不到终端时会弹出对话框，提示自行运行 `~/.config/proxy-switcher/switcher.sh`。桌面启动器若 `launch.sh` 失败也会弹出对话框，而不是静默失败。
+>
+> 为什么是 `.command` 而不是 `.app`：早期版本用 AppleScript applet（`.app`）包装启动命令，但 applet 是 ad-hoc 签名、无稳定 Bundle ID，每次重建签名一变，macOS TCC 就当成新应用反复弹窗要"下载/图片等文件夹"访问权限；且子进程（Antigravity 本体等）的文件访问也会归因到 applet 头上。`.command` 以终端身份直接执行，沿用终端已有的授权，不再弹窗。
 
 ### 使用
 
 | 场景 | 操作 |
 |------|------|
-| 开关代理 | 双击 `代理切换.app`（或 `~/.config/proxy-switcher/switcher.sh`）；菜单与 Windows 相同：奇数 opencode、偶数 Antigravity，`[1]/[2]` 开、`[3]/[4]` 关 |
+| 开关代理 | 双击 `代理切换.command`（或 `~/.config/proxy-switcher/switcher.sh`）；菜单与 Windows 相同：奇数 opencode、偶数 Antigravity，`[1]/[2]` 开、`[3]/[4]` 关 |
 | Antigravity CLI | 新终端 `agy-proxy ...` |
 | opencode CLI | 新终端 `opencode-proxy ...` |
-| Antigravity 桌面端 | 双击 `Antigravity 代理启动.app`（自动注入 + 白屏恢复） |
-| OpenCode 桌面端 | 双击 `OpenCode 代理启动.app` |
+| Antigravity 桌面端 | 双击 `Antigravity 代理启动.command`（自动注入 + 白屏恢复） |
+| OpenCode 桌面端 | 双击 `OpenCode 代理启动.command` |
 
 ### macOS 白屏（重点）
 
@@ -204,7 +206,7 @@ proxy-switcher/
 │   ├── lib.zsh                     # macOS 共用：读配置 / 按标记注入
 │   ├── switcher.sh                 # macOS 主菜单（zsh）
 │   ├── launch.sh                   # macOS 桌面启动器（注入 + 白屏恢复）
-│   ├── open-menu.sh                # 菜单 .app：检测终端并打开 switcher.sh
+│   ├── open-menu.sh                # 被菜单 .command 调用：检测终端并打开 switcher.sh
 │   ├── profile.zsh                 # macOS CLI 注入函数
 │   └── config.example.json         # macOS 配置模板
 ├── .github/

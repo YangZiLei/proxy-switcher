@@ -5,9 +5,10 @@
 # 在 ~/.zshrc 中添加：
 #   . "$HOME/.config/proxy-switcher/profile.zsh"
 #
-# 提供两个命令：
-#   opencode-proxy   标记开启时以代理模式运行 opencode
-#   agy-proxy        标记开启时以代理模式运行 agy
+# 提供三个命令：
+#   proxy-switch    打开主菜单（开/关代理、启动桌面端）
+#   opencode-proxy  标记开启时以代理模式运行 opencode
+#   agy-proxy       标记开启时以代理模式运行 agy
 #
 # 标记文件在 $HOME 下（由 switcher.sh 切换）：
 #   ~/.opencode-proxy-on
@@ -22,6 +23,15 @@
 # shellcheck source=lib.zsh
 # shellcheck disable=SC1091,SC2296,SC2298 # zsh ${(%):-%x}:A:h = dir of sourced file
 . "${${(%):-%x}:A:h}/lib.zsh"
+
+# 主菜单（等价于双击 ~/Applications/代理切换.command）
+# 新终端里直接敲 proxy-switch 即可，不用记 ~/.config 下的脚本路径。
+function proxy-switch() {
+  # shellcheck disable=SC2296,SC2298 # zsh ${(%):-%x}:A:h = dir of sourced file
+  local sw="${${(%):-%x}:A:h}/switcher.sh"
+  [[ -x "$sw" ]] || { print -u2 "proxy-switcher: 找不到菜单脚本 $sw，请重跑 macos/install.sh"; return 1; }
+  "$sw"
+}
 
 # opencode — run with proxy when marker exists
 function opencode-proxy() {

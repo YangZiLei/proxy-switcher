@@ -8,6 +8,10 @@
     "candidates_comment": "Optional extras, e.g. candidates: [\"http://127.0.0.1:18080\"], candidate_ports: [18080]. Built-in scan already covers 7897/7890/7892/7893/7899/7895/10809/2080/2081/8080/20171/20172"
   },
   "no_proxy": "127.0.0.1,localhost",
+  "path": {
+    "extra": [],
+    "comment": "Extra dirs appended to PATH when launched by double-clicking a .command (Finder-spawned shells may lack /usr/sbin, so lsof and self-managed node are invisible). Example: [\"/Users/you/.nvm/versions/node/v22.11.0/bin\"] — node >= 21 is required by recoverWhiteScreen"
+  },
   "markers": {
     "opencode": ".opencode-proxy-on",
     "antigravity": ".agy-proxy-on",

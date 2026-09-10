@@ -22,6 +22,8 @@ SCRIPT_DIR="${0:A:h}"
 # shellcheck disable=SC1091
 # shellcheck source=lib.zsh
 . "$SCRIPT_DIR/lib.zsh"
+# 经 .command 双击拉起时环境变量可能不完整，先补齐 PATH（lsof / node）
+_psw_prepare_path
 
 [[ -f "$PROXY_SWITCHER_CONFIG" ]] || {
   print -u2 "错误：找不到配置文件 $PROXY_SWITCHER_CONFIG"
@@ -92,8 +94,9 @@ p, url = sys.argv[1], sys.argv[2]
 cfg = json.load(open(p))
 cfg.setdefault("proxy", {})["url"] = url
 json.dump(cfg, open(p, "w"), ensure_ascii=False, indent=2)
-print("saved")
+    print("saved")
 PY
+    _psw_config_reload   # 缓存失效，下一帧读新值
     print "[OK] 已将代理地址设为 $urls[$sel]"
   else
     print "已取消，未修改。"

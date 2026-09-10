@@ -24,6 +24,8 @@ SCRIPT_DIR="${0:A:h}"
 # shellcheck disable=SC1091
 # shellcheck source=lib.zsh
 . "$SCRIPT_DIR/lib.zsh"
+# 经 .command 双击拉起时环境变量可能不完整，先补齐 PATH（lsof 用于白屏恢复）
+_psw_prepare_path
 
 # 白屏自动恢复：LS(Go) 启动要 ~37s(playwright 404 重试+网络初始化)，
 # Electron 窗口过早加载 → 30s 超时 → 白屏定格。此函数：

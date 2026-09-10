@@ -6,23 +6,83 @@
 
 : "${PROXY_SWITCHER_CONFIG:=$HOME/.config/proxy-switcher/config.json}"
 
-_psw_config_get() {
-  python3 - "$1" "$2" <<'PY'
+# --- 配置缓存 ------------------------------------------------------------
+# 一次 python3 把整份 config 摊平成 key=value 存进关联数组，后续查找不再起
+# 进程（菜单每帧原本要起 5~7 个 python3 ≈ 0.3s）。写配置后调 _psw_config_reload。
+typeset -gA _PSW_CFG
+typeset -ga _PSW_PATH_EXTRA
+typeset -g _PSW_CFG_READY=0
+
+_psw_config_load() {
+  (( _PSW_CFG_READY )) && return 0
+  [[ -f "$PROXY_SWITCHER_CONFIG" ]] || return 0
+  local line
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    if [[ "$line" == "path.extra."* ]]; then
+      _PSW_PATH_EXTRA+=("${line#path.extra.}")
+    else
+      _PSW_CFG[${line%%=*}]="${line#*=}"
+    fi
+  done < <(python3 - "$PROXY_SWITCHER_CONFIG" <<'PY'
 import json, sys
 try:
     d = json.load(open(sys.argv[1]))
-    v = d
-    for k in sys.argv[2].split("."):
-        v = v[k]
-    if isinstance(v, str):
-        print(v)
-    elif isinstance(v, bool):
-        print("true" if v else "false")
-    else:
-        print("")
 except Exception:
-    print("")
+    sys.exit(0)
+out = []
+def walk(v, prefix):
+    if isinstance(v, dict):
+        for k, vv in v.items():
+            walk(vv, "%s.%s" % (prefix, k) if prefix else k)
+        return
+    if isinstance(v, str):
+        s = v
+    elif isinstance(v, bool):
+        s = "true" if v else "false"
+    else:
+        return
+    if "\n" in s or "\r" in s:
+        return
+    out.append("%s=%s" % (prefix, s))
+walk(d, "")
+pe = d.get("path") if isinstance(d.get("path"), dict) else {}
+for p in pe.get("extra") or []:
+    if isinstance(p, str) and p.strip() and "\n" not in p:
+        out.append("path.extra.%s" % p.strip())
+sys.stdout.write("\n".join(out))
 PY
+)
+  _PSW_CFG_READY=1
+}
+
+_psw_config_reload() {
+  unset _PSW_CFG _PSW_PATH_EXTRA
+  typeset -gA _PSW_CFG
+  typeset -ga _PSW_PATH_EXTRA
+  _PSW_CFG_READY=0
+}
+
+_psw_config_get() {   # $1=config 路径（保留兼容） $2=点分 key
+  _psw_config_load
+  print -r -- "${_PSW_CFG[$2]-}"
+}
+
+# --- PATH 兜底 -----------------------------------------------------------
+# 经 Finder 双击 .command 拉起时环境变量可能不完整（PATH 只有基础目录），
+# 没有 /usr/sbin → lsof 找不到（白屏恢复要靠它找 language_server 端口）。
+# 这里补齐标准目录，再追加 config 里 path.extra 的机器特定目录（自管 node 等）。
+# 只在 switcher.sh / launch.sh 里调用：profile.zsh 不调，避免拖慢每个新 shell。
+_psw_prepare_path() {
+  local d
+  for d in /usr/local/bin /opt/homebrew/bin /usr/bin /bin /usr/sbin /sbin; do
+    [[ -d "$d" && ":$PATH:" != *":$d:"* ]] && PATH="$PATH:$d"
+  done
+  _psw_config_load
+  for d in "${_PSW_PATH_EXTRA[@]}"; do
+    [[ -d "$d" && ":$PATH:" != *":$d:"* ]] && PATH="$PATH:$d"
+  done
+  export PATH
 }
 
 _psw_no_proxy() {
