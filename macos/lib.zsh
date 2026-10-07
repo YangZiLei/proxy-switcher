@@ -92,6 +92,20 @@ _psw_no_proxy() {
   print -r -- "$n"
 }
 
+# --- macOS 通知中心（尽力而为）---------------------------------------------
+# 静默启动模式的主要反馈通道；SSH 等无 Aqua 会话场景或 osascript 缺失时静默跳过。
+# 同步执行（osascript ~0.3s），避免后台子进程随宿主脚本退出被 SIGHUP 掐断。
+_psw_notify() {   # $1=标题 $2=正文 $3="sound"(可选，失败/警告时用)
+  [[ "$(uname)" == "Darwin" ]] || return 0
+  command -v osascript >/dev/null 2>&1 || return 0
+  local t b snd
+  t="${1//\\/\\\\}"; t="${t//\"/\\\"}"
+  b="${2//\\/\\\\}"; b="${b//\"/\\\"}"
+  snd=""
+  [[ "$3" == "sound" ]] && snd=' sound name "Ping"'
+  osascript -e "display notification \"$b\" with title \"$t\"$snd" >/dev/null 2>&1
+}
+
 # --- proxy auto-detect: config url -> OS system proxy -> common ports ---
 # Lets users swap proxy apps (different ports) without editing config.json.
 # Pure-SOCKS ports (7891/7898/10808/1080) are excluded: an http:// URL on a
@@ -198,15 +212,19 @@ for p in sys.argv[2].split():
 PY
 }
 
-# Resolve the URL to inject: first reachable candidate. Prints "url|source".
-# Falls back to the config url when detection is off or nothing answers.
-_psw_resolve_proxy() {
-  local url src line
+# First REACHABLE candidate, prints "url|source" and returns 0; return 1 when
+# nothing answers. Unlike _psw_resolve_proxy this never falls back, so callers
+# can distinguish "proxy alive" from "direct only" (auto mode needs that).
+_psw_resolve_alive() {
+  local line url src
   if ! _psw_auto_detect_enabled; then
     url="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "proxy.url")"
-    _PSW_PROXY_SOURCE="config"
-    print -r -- "$url|config"
-    return 0
+    if [[ -n "$url" ]] && _psw_url_reachable "$url"; then
+      _PSW_PROXY_SOURCE="config"
+      print -r -- "$url|config"
+      return 0
+    fi
+    return 1
   fi
   while IFS= read -r line; do
     url="${line%%|*}"; src="${line##*|}"
@@ -216,6 +234,17 @@ _psw_resolve_proxy() {
       return 0
     fi
   done < <(_psw_candidate_urls | awk -F'|' '!seen[$0]++')
+  return 1
+}
+
+# Resolve the URL to inject: first reachable candidate. Prints "url|source".
+# Falls back to the config url when detection is off or nothing answers.
+_psw_resolve_proxy() {
+  local line url
+  if line="$(_psw_resolve_alive)"; then
+    print -r -- "$line"
+    return 0
+  fi
   url="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "proxy.url")"
   _PSW_PROXY_SOURCE="config"
   print -r -- "$url|config"
@@ -234,9 +263,23 @@ _psw_available_proxies() {
 
 # Effective URL for an app: marker-pinned URL while it answers, else resolve
 # (so a swapped proxy app is picked up without editing config.json).
+_psw_marker_name() {   # $1=app -> 标记文件名（缺省时智能回落）
+  local m
+  m="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.$1")"
+  if [[ -z "$m" ]]; then
+    case "$1" in
+      opencode)    m=".opencode-proxy-on" ;;
+      antigravity) m=".agy-proxy-on" ;;
+      gemini)      m=".gemini-proxy-on" ;;
+      *)           m=".$1-proxy-on" ;;
+    esac
+  fi
+  print -r -- "$m"
+}
+
 _psw_effective_proxy() {
   local app="$1" marker murl
-  marker="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.$app")"
+  marker="$(_psw_marker_name "$app")"
   if [[ -n "$marker" && -f "$HOME/$marker" ]]; then
     murl="$(cat "$HOME/$marker" 2>/dev/null | tr -d '[:space:]')"
     if [[ "$murl" == http://* || "$murl" == https://* ]] && _psw_url_reachable "$murl"; then
@@ -248,43 +291,190 @@ _psw_effective_proxy() {
   _psw_resolve_proxy
 }
 
-# Run a command with proxy env IFF the app's marker exists.
-# Prefix assignment only — does not export into the current shell.
+# --- 每工具三态模式: auto / proxy(强制代理) / direct(强制直连) ----------------
+# 标记文件（$HOME 下，名字取自 config.json markers.<app>）：
+#   <marker>(…-on)   -> 强制代理：总是注入；标记里存的地址失效时改用探测结果
+#   <marker>-off 后缀 -> 强制直连：绝不注入
+#   两者都无          -> 自动：启动时探测，代理存活才注入（无代理不报错，直连）
+# 老版本标记里存的是 URL；empty 文件同样表示强制代理，_psw_effective_proxy
+# 读不到 URL 会回落到探测，行为兼容。
+_psw_off_marker_name() {   # $1=on-marker 名 -> 打印 off-marker 名
+  local m="$1"
+  if [[ "$m" == *on ]]; then
+    print -r -- "${m%??}off"
+  else
+    print -r -- "${m}-off"
+  fi
+}
+
+_psw_get_mode() {   # $1=app -> "proxy" | "direct" | "auto"
+  local on off
+  on="$(_psw_marker_name "$1")"
+  if [[ -n "$on" && -f "$HOME/$on" ]]; then
+    print -r -- proxy
+    return 0
+  fi
+  off="$(_psw_off_marker_name "$on")"
+  if [[ -n "$off" && -f "$HOME/$off" ]]; then
+    print -r -- direct
+    return 0
+  fi
+  print -r -- auto
+}
+
+_psw_set_mode() {   # $1=app $2=auto|proxy|direct
+  local on off
+  on="$(_psw_marker_name "$1")"
+  off="$(_psw_off_marker_name "$on")"
+  rm -f "$HOME/$on" "$HOME/$off"
+  case "$2" in
+    proxy)  [[ -n "$on"  ]] && : > "$HOME/$on" ;;
+    direct) [[ -n "$off" ]] && : > "$HOME/$off" ;;
+  esac
+}
+
+# 统一注入决策点（桌面启动 + CLI 包装共用）。设置全局：
+#   _PSW_DECISION_MODE = auto|proxy|direct
+#   _PSW_DECISION_URL  = 注入地址（直连时为空）
+#   _PSW_DECISION_SRC  = 来源 (marker|config|system|probe|none)
+# 返回 0 = 应注入代理环境；1 = 直连。
+# 注意来源必须从返回行解析：_psw_resolve_alive/_psw_effective_proxy 在 $()
+# 子 shell 里运行，它们对 _PSW_PROXY_SOURCE 的赋值不会传回父进程。
+_psw_decide_injection() {
+  local app="$1" mode line url src
+  mode="$(_psw_get_mode "$app")"
+  _PSW_DECISION_MODE="$mode"
+  _PSW_DECISION_URL=""
+  _PSW_DECISION_SRC="none"
+  case "$mode" in
+    direct)
+      return 1
+      ;;
+    proxy)
+      line="$(_psw_effective_proxy "$app")"
+      ;;
+    *)
+      if ! line="$(_psw_resolve_alive)"; then
+        return 1
+      fi
+      ;;
+  esac
+  url="${line%%|*}"
+  if [[ -z "$url" ]]; then
+    return 1
+  fi
+  src="${line##*|}"
+  _PSW_DECISION_URL="$url"
+  _PSW_DECISION_SRC="$src"
+  _PSW_PROXY_SOURCE="$src"
+  return 0
+}
+
+# Gemini.app 专有自愈与环境适配:
+# 1) Gemini 内置的 libcurl (curl_api.cc) 在 proxy_config 为空时硬编码了
+#    curl_easy_setopt(curl, CURLOPT_NOPROXY, "*")，导致其 OAuth token 刷新
+#    强制直连并超时 (curl code 28)。将 '*\0' 热补丁为 '\0\0' 可解除该限制。
+# 2) 检查 macOS 代理绕过列表，若包含错误的 '172.2*' 通配符（会导致
+#    Google 的 172.217.* 被绕过直连），自动修正为标准的 172.20.*~172.29.*。
+_psw_patch_gemini_if_needed() {
+  local bin="$1"
+  [[ -f "$bin" ]] || return 0
+  [[ "$bin" == *"/Gemini" ]] || return 0
+
+  # 1. 检测并修补二进制中硬编码的 CURLOPT_NOPROXY "*"
+  python3 - "$bin" <<'PY' >/dev/null 2>&1 || true
+import os, sys, subprocess
+
+bin_path = sys.argv[1]
+try:
+    with open(bin_path, "r+b") as f:
+        data = f.read()
+        target = b"*\x00Unexpected error setting proxy"
+        pos = data.find(target)
+        if pos != -1:
+            f.seek(pos)
+            f.write(b"\x00\x00")
+            f.flush()
+            app_dir = bin_path
+            while app_dir and not app_dir.endswith(".app"):
+                app_dir = os.path.dirname(app_dir)
+            if app_dir:
+                subprocess.run(["codesign", "--force", "--deep", "-s", "-", app_dir],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+except Exception:
+    pass
+PY
+
+  # 2. 检查并修正 macOS 系统代理绕过列表中的 172.2* 通配符错误
+  if command -v networksetup >/dev/null 2>&1; then
+    local bypass
+    bypass="$(networksetup -getproxybypassdomains "Wi-Fi" 2>/dev/null || true)"
+    if [[ "$bypass" == *"172.2*"* ]]; then
+      local fixed
+      fixed="${bypass//172.2\*/172.20.* 172.21.* 172.22.* 172.23.* 172.24.* 172.25.* 172.26.* 172.27.* 172.28.* 172.29.*}"
+      # shellcheck disable=SC2086
+      networksetup -setproxybypassdomains "Wi-Fi" $fixed >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
+# Run a command with proxy env per the app's tri-state mode (see
+# _psw_decide_injection). Prefix assignment only — does not export into the
+# current shell. Prints a one-line decision note to stderr.
 _psw_run_with_marker() {
   local app="$1"; shift
   if [[ ! -f "$PROXY_SWITCHER_CONFIG" ]]; then
     print -u2 "proxy-switcher: 找不到配置文件 $PROXY_SWITCHER_CONFIG"
     return 1
   fi
-  local url np marker line
-  line="$(_psw_effective_proxy "$app")"
-  url="${line%%|*}"
+  local np
   np="$(_psw_no_proxy)"
-  marker="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.$app")"
-  if [[ -n "$marker" && -f "$HOME/$marker" && -n "$url" ]]; then
-    # shellcheck disable=SC2097,SC2098 # 有意同时注入 NO_PROXY 与 no_proxy,右值来自 local 而非环境
-    HTTPS_PROXY="$url" HTTP_PROXY="$url" ALL_PROXY="$url" \
-    NO_PROXY="$np" no_proxy="$np" \
-      "$@"
+  if _psw_decide_injection "$app"; then
+    print -u2 "[proxy-switcher] ${_PSW_DECISION_MODE}: 走代理 $_PSW_DECISION_URL (来源: $_PSW_DECISION_SRC)"
+    if [[ "$app" == "gemini" ]]; then
+      local host_port="${_PSW_DECISION_URL#*://}"
+      local socks_url="socks5://${host_port}"
+      # shellcheck disable=SC2097,SC2098 # 有意同时注入大小写代理变量与 NO_PROXY/no_proxy
+      HTTPS_PROXY="$socks_url" HTTP_PROXY="$socks_url" ALL_PROXY="$socks_url" \
+      https_proxy="$socks_url" http_proxy="$socks_url" all_proxy="$socks_url" \
+      GRPC_PROXY="$_PSW_DECISION_URL" grpc_proxy="$_PSW_DECISION_URL" \
+      NO_PROXY="$np" no_proxy="$np" \
+        "$@"
+    else
+      # shellcheck disable=SC2097,SC2098 # 有意同时注入大小写代理变量与 NO_PROXY/no_proxy
+      HTTPS_PROXY="$_PSW_DECISION_URL" HTTP_PROXY="$_PSW_DECISION_URL" ALL_PROXY="$_PSW_DECISION_URL" \
+      https_proxy="$_PSW_DECISION_URL" http_proxy="$_PSW_DECISION_URL" all_proxy="$_PSW_DECISION_URL" \
+      NO_PROXY="$np" no_proxy="$np" \
+        "$@"
+    fi
   else
+    case "$_PSW_DECISION_MODE" in
+      direct) print -u2 "[proxy-switcher] 强制直连（不走代理）" ;;
+      *)      print -u2 "[proxy-switcher] 自动: 未检测到可用代理，直连运行" ;;
+    esac
     "$@"
   fi
 }
 
-# For desktop launch: drop inherited proxy vars, then inject IFF marker is on.
-# Return 0 if injecting, 1 if starting direct. Exports into the current
+# For desktop launch: drop inherited proxy vars, then inject per tri-state
+# mode. Return 0 if injecting, 1 if starting direct. Exports into the current
 # (short-lived launcher) process so the spawned app inherits them.
 _psw_prepare_desktop_env() {
   local app="$1"
-  local url np marker line src
-  line="$(_psw_effective_proxy "$app")"
-  url="${line%%|*}"; src="${line##*|}"
-  _PSW_PROXY_SOURCE="$src"
+  local np
   np="$(_psw_no_proxy)"
-  marker="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.$app")"
-  unset HTTPS_PROXY HTTP_PROXY ALL_PROXY https_proxy http_proxy all_proxy NO_PROXY no_proxy
-  if [[ -n "$marker" && -f "$HOME/$marker" && -n "$url" ]]; then
-    export HTTPS_PROXY="$url" HTTP_PROXY="$url" ALL_PROXY="$url"
+  unset HTTPS_PROXY HTTP_PROXY ALL_PROXY https_proxy http_proxy all_proxy NO_PROXY no_proxy GRPC_PROXY grpc_proxy
+  if _psw_decide_injection "$app"; then
+    if [[ "$app" == "gemini" ]]; then
+      local host_port="${_PSW_DECISION_URL#*://}"
+      local socks_url="socks5://${host_port}"
+      export HTTPS_PROXY="$socks_url" HTTP_PROXY="$socks_url" ALL_PROXY="$socks_url"
+      export https_proxy="$socks_url" http_proxy="$socks_url" all_proxy="$socks_url"
+      export GRPC_PROXY="$_PSW_DECISION_URL" grpc_proxy="$_PSW_DECISION_URL"
+    else
+      export HTTPS_PROXY="$_PSW_DECISION_URL" HTTP_PROXY="$_PSW_DECISION_URL" ALL_PROXY="$_PSW_DECISION_URL"
+      export https_proxy="$_PSW_DECISION_URL" http_proxy="$_PSW_DECISION_URL" all_proxy="$_PSW_DECISION_URL"
+    fi
     export NO_PROXY="$np" no_proxy="$np"
     return 0
   fi

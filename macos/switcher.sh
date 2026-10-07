@@ -2,12 +2,15 @@
 # shellcheck shell=bash
 # ============================================================
 # proxy-switcher for macOS — 主菜单
-# opencode / Antigravity (agy) 按工具独立代理开关
+# opencode / Antigravity (agy) 按工具独立代理控制
 #
 # 原理：
-#   每个工具在 $HOME 下有一个标记文件（见 config.json）。
-#   开启=写标记文件；关闭=删除标记文件。profile.zsh 中的
-#   函数在启动时读取标记，只向子进程注入
+#   每个工具在 $HOME 下有标记文件（名字见 config.json）。
+#   三态模式（_psw_get_mode / _psw_set_mode）：
+#     强制代理 (…-on)   -> 启动/CLI 总是注入
+#     强制直连 (…-off)  -> 总是直连
+#     自动 (无标记)     -> 启动时探测，代理存活才注入
+#   注入只发生在启动器/包装函数里，只向子进程注入
 #   HTTPS_PROXY/HTTP_PROXY/ALL_PROXY——不触碰全局环境变量。
 #
 # 用法：
@@ -33,36 +36,51 @@ _psw_prepare_path
 proxy_cfg="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "proxy.url")"
 marker_oc="$( _psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.opencode")"
 marker_agy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.antigravity")"
+marker_gem="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.gemini")"
+[[ -z "$marker_oc" ]] && marker_oc=".opencode-proxy-on"
+[[ -z "$marker_agy" ]] && marker_agy=".agy-proxy-on"
+[[ -z "$marker_gem" ]] && marker_gem=".gemini-proxy-on"
+
 cli_oc="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.opencode.cli")"
 cli_agy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.antigravity.cli")"
+cli_gem="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.gemini.cli")"
 [[ -z "$cli_oc" ]] && cli_oc="opencode"
 [[ -z "$cli_agy" ]] && cli_agy="agy"
-[[ -n "$marker_oc" && -n "$marker_agy" && -n "$proxy_cfg" ]] || {
-  print -u2 "错误：config.json 缺少 markers/proxy.url 配置项"
+
+[[ -n "$proxy_cfg" ]] || {
+  print -u2 "错误：config.json 缺少 proxy.url 配置项"
   exit 1
 }
-marker_oc="$HOME/$marker_oc"
-marker_agy="$HOME/$marker_agy"
 
 # 解析当前应注入的代理（配置 > 系统代理 > 常见端口），打印 "url|source"。
 _psw_effective_proxy_any() {
-  if [[ -f "$marker_oc" || -f "$marker_agy" ]]; then
-    if [[ -f "$marker_oc" ]]; then _psw_effective_proxy opencode; else _psw_effective_proxy antigravity; fi
-  else
-    _psw_resolve_proxy
-  fi
+  local app m
+  for app in opencode antigravity gemini; do
+    m="$(_psw_marker_name "$app")"
+    if [[ -n "$m" && -f "$HOME/$m" ]]; then
+      _psw_effective_proxy "$app"
+      return
+    fi
+  done
+  _psw_resolve_proxy
 }
 
-# 开启代理：写入实际可用的地址，而不是写死的配置值。
-enable_marker() {
-  local marker="$1" label="$2" line url src
-  line="$(_psw_resolve_proxy)"
-  url="${line%%|*}"; src="${line##*|}"
-  print "$url" > "$marker"
-  print ""
-  print "[OK] $label 代理已开启 (CLI + 桌面)"
-  print "     地址: $url (来源: $src)"
-  print "     新终端里运行相应 -proxy 命令或桌面启动器将走代理"
+# 三态模式显示名
+mode_label() {
+  case "$(_psw_get_mode "$1")" in
+    proxy)  print "强制代理" ;;
+    direct) print "强制直连" ;;
+    *)      print "自动 (探测，存活则注入)" ;;
+  esac
+}
+
+# 模式循环：自动 -> 强制代理 -> 强制直连 -> 自动
+next_mode() {
+  case "$(_psw_get_mode "$1")" in
+    auto)   print proxy ;;
+    proxy)  print direct ;;
+    *)      print auto ;;
+  esac
 }
 
 # [0] 探测本机代理：列出可用地址，可选中写入 config.json。
@@ -82,13 +100,13 @@ pick_proxy() {
   fi
   print "发现以下可用代理："
   for (( i = 1; i <= ${#urls}; i++ )); do
-    print "  [$i] $urls[$i]  (来源: $srcs[$i])"
+    print "  [$i] ${urls[$i]}  (来源: ${srcs[$i]})"
   done
   print "  [0] 取消"
   local sel
   read -r "sel?选择要写入 config.json 的地址序号: "
   if [[ "$sel" =~ ^[0-9]+$ ]] && (( sel >= 1 && sel <= ${#urls} )); then
-    python3 - "$PROXY_SWITCHER_CONFIG" "$urls[$sel]" <<'PY'
+    python3 - "$PROXY_SWITCHER_CONFIG" "${urls[$sel]}" <<'PY'
 import json, sys
 p, url = sys.argv[1], sys.argv[2]
 cfg = json.load(open(p))
@@ -97,7 +115,7 @@ json.dump(cfg, open(p, "w"), ensure_ascii=False, indent=2)
     print("saved")
 PY
     _psw_config_reload   # 缓存失效，下一帧读新值
-    print "[OK] 已将代理地址设为 $urls[$sel]"
+    print "[OK] 已将代理地址设为 ${urls[$sel]}"
   else
     print "已取消，未修改。"
   fi
@@ -105,11 +123,9 @@ PY
 }
 
 status_line() {
-  local oc agy
-  [[ -f "$marker_oc"  ]] && oc="开 (走代理)"  || oc="关 (直连)"
-  [[ -f "$marker_agy" ]] && agy="开 (走代理)" || agy="关 (直连)"
-  print "  opencode   : $oc"
-  print "  antigravity: $agy"
+  print "  opencode   : $(mode_label opencode)"
+  print "  antigravity: $(mode_label antigravity)"
+  print "  Gemini     : $(mode_label gemini)"
 }
 
 while true; do
@@ -118,26 +134,31 @@ while true; do
   _menu_url="${_menu_line%%|*}"; _menu_src="${_menu_line##*|}"
   print "================================================"
   print "   AI Agent 代理切换器 (macOS)"
-  print "   (opencode / Antigravity 按工具独立控制)"
-  print "   代理: $_menu_url (来源: $_menu_src)"
+  print "   (opencode / Antigravity / Gemini 独立控制)"
+  print "   当前可用代理: $_menu_url (来源: $_menu_src)"
   print "================================================"
   status_line
   print ""
   print "  ── opencode ──────────────────────"
-  print "  [1] 开启 代理 (CLI + 桌面)"
-  print "  [3] 关闭 代理 (直连)"
-  print "  [5] 启动 桌面端 (按标记注入代理)"
-  print "  [7] 开启代理并启动 CLI (本窗口)"
+  print "  [1] 切换模式 (自动 / 强制代理 / 强制直连)"
+  print "  [5] 启动 桌面端 (按当前模式注入)"
+  print "  [7] 启动 CLI (本窗口, 按当前模式)"
   print ""
   print "  ── Antigravity ───────────────────"
-  print "  [2] 开启 代理 (CLI + 桌面)"
-  print "  [4] 关闭 代理 (直连)"
-  print "  [6] 启动 桌面端 (按标记注入代理)"
-  print "  [8] 开启代理并启动 CLI (本窗口)"
+  print "  [2] 切换模式 (自动 / 强制代理 / 强制直连)"
+  print "  [6] 启动 桌面端 (按当前模式注入)"
+  print "  [8] 启动 CLI (本窗口, 按当前模式)"
+  print ""
+  print "  ── Gemini ────────────────────────"
+  print "  [3] 切换模式 (自动 / 强制代理 / 强制直连)"
+  print "  [4] 启动 桌面端 (按当前模式注入)"
+  if [[ -n "$cli_gem" ]]; then
+    print "  [g] 启动 CLI (本窗口, 按当前模式)"
+  fi
   print ""
   print "  [0] 探测本机代理端口 (换代理软件后用这个)"
   print ""
-  print "  [9] 退出"
+  print "  [9] 退出 (或输入 q)"
   print -n "请选择: "
   read -r choice
   case "$choice" in
@@ -145,23 +166,20 @@ while true; do
       pick_proxy
       ;;
     1)
-      enable_marker "$marker_oc" "opencode"
-      read -r "?按回车返回"
+      _psw_set_mode opencode "$(next_mode opencode)"
       ;;
     2)
-      enable_marker "$marker_agy" "antigravity"
-      read -r "?按回车返回"
+      _psw_set_mode antigravity "$(next_mode antigravity)"
       ;;
     3)
-      rm -f "$marker_oc"
-      print ""
-      print "[OK] opencode 已恢复直连"
-      read -r "?按回车返回"
+      _psw_set_mode gemini "$(next_mode gemini)"
       ;;
     4)
-      rm -f "$marker_agy"
       print ""
-      print "[OK] antigravity 已恢复直连"
+      print "正在启动 Gemini 桌面端..."
+      print ""
+      "$SCRIPT_DIR/launch.sh" gemini
+      print ""
       read -r "?按回车返回"
       ;;
     5)
@@ -181,24 +199,34 @@ while true; do
       read -r "?按回车返回"
       ;;
     7)
-      enable_marker "$marker_oc" "opencode"
       print ""
-      print "正在以代理模式启动 opencode CLI（退出后返回）..."
+      print "正在启动 opencode CLI（退出后返回）..."
       print ""
       _psw_run_with_marker opencode command "$cli_oc"
       print ""
       read -r "?opencode CLI 已退出。按回车返回"
       ;;
     8)
-      enable_marker "$marker_agy" "antigravity"
       print ""
-      print "正在以代理模式启动 Antigravity CLI（退出后返回）..."
+      print "正在启动 Antigravity CLI（退出后返回）..."
       print ""
       _psw_run_with_marker antigravity command "$cli_agy"
       print ""
       read -r "?agy CLI 已退出。按回车返回"
       ;;
-    9) exit 0 ;;
+    g|G)
+      if [[ -n "$cli_gem" ]]; then
+        print ""
+        print "正在启动 Gemini CLI（退出后返回）..."
+        print ""
+        _psw_run_with_marker gemini command "$cli_gem"
+        print ""
+        read -r "?Gemini CLI 已退出。按回车返回"
+      else
+        print "未配置 Gemini CLI"; sleep 1
+      fi
+      ;;
+    9|q|Q) exit 0 ;;
     *) print "无效选项"; sleep 1 ;;
   esac
 done

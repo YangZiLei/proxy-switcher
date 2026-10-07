@@ -15,7 +15,8 @@
   "markers": {
     "opencode": ".opencode-proxy-on",
     "antigravity": ".agy-proxy-on",
-    "comment": "Marker files live under $HOME and toggle proxy per tool"
+    "gemini": ".gemini-proxy-on",
+    "comment": "Marker files live under $HOME. Each listed '-on' marker forces proxy for that tool; a sibling '-off' marker (e.g. .opencode-proxy-off) forces direct; with neither present the launcher auto-detects at launch (proxy alive -> inject + notify, else direct)"
   },
   "apps": {
     "opencode": {
@@ -29,6 +30,10 @@
       "chromiumArgs": "--no-proxy-server",
       "recoverWhiteScreen": true,
       "comment": "UI 是 https://127.0.0.1:<port> 回环。language_server(Go) 启动需 ~37s(playwright 404 重试等)，窗口过早加载会 30s 超时白屏；recoverWhiteScreen=true 时启动器等 LS 就绪后经 CDP 重载窗口。chromiumArgs=--no-proxy-server 防御系统 PAC(wpad NXDOMAIN) 劫持 Chromium 回环代理解析。API 流量仍走 language_server(Go, 吃 HTTPS_PROXY env)"
+    },
+    "gemini": {
+      "desktop": "/Applications/Gemini.app/Contents/MacOS/Gemini",
+      "comment": "Google Gemini 官方 macOS 客户端"
     }
   }
 }
