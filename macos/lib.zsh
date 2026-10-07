@@ -271,6 +271,7 @@ _psw_marker_name() {   # $1=app -> 标记文件名（缺省时智能回落）
       opencode)    m=".opencode-proxy-on" ;;
       antigravity) m=".agy-proxy-on" ;;
       gemini)      m=".gemini-proxy-on" ;;
+      grok)        m=".grok-proxy-on" ;;
       *)           m=".$1-proxy-on" ;;
     esac
   fi

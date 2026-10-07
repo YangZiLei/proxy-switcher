@@ -37,15 +37,19 @@ proxy_cfg="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "proxy.url")"
 marker_oc="$( _psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.opencode")"
 marker_agy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.antigravity")"
 marker_gem="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.gemini")"
+marker_grk="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "markers.grok")"
 [[ -z "$marker_oc" ]] && marker_oc=".opencode-proxy-on"
 [[ -z "$marker_agy" ]] && marker_agy=".agy-proxy-on"
 [[ -z "$marker_gem" ]] && marker_gem=".gemini-proxy-on"
+[[ -z "$marker_grk" ]] && marker_grk=".grok-proxy-on"
 
 cli_oc="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.opencode.cli")"
 cli_agy="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.antigravity.cli")"
 cli_gem="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.gemini.cli")"
+cli_grk="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.grok.cli")"
 [[ -z "$cli_oc" ]] && cli_oc="opencode"
 [[ -z "$cli_agy" ]] && cli_agy="agy"
+[[ -z "$cli_grk" ]] && cli_grk="grok"
 
 [[ -n "$proxy_cfg" ]] || {
   print -u2 "错误：config.json 缺少 proxy.url 配置项"
@@ -55,7 +59,7 @@ cli_gem="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.gemini.cli")"
 # 解析当前应注入的代理（配置 > 系统代理 > 常见端口），打印 "url|source"。
 _psw_effective_proxy_any() {
   local app m
-  for app in opencode antigravity gemini; do
+  for app in opencode antigravity gemini grok; do
     m="$(_psw_marker_name "$app")"
     if [[ -n "$m" && -f "$HOME/$m" ]]; then
       _psw_effective_proxy "$app"
@@ -126,6 +130,7 @@ status_line() {
   print "  opencode   : $(mode_label opencode)"
   print "  antigravity: $(mode_label antigravity)"
   print "  Gemini     : $(mode_label gemini)"
+  print "  Grok       : $(mode_label grok)"
 }
 
 while true; do
@@ -134,7 +139,7 @@ while true; do
   _menu_url="${_menu_line%%|*}"; _menu_src="${_menu_line##*|}"
   print "================================================"
   print "   AI Agent 代理切换器 (macOS)"
-  print "   (opencode / Antigravity / Gemini 独立控制)"
+  print "   (opencode / Antigravity / Gemini / Grok)"
   print "   当前可用代理: $_menu_url (来源: $_menu_src)"
   print "================================================"
   status_line
@@ -155,6 +160,10 @@ while true; do
   if [[ -n "$cli_gem" ]]; then
     print "  [g] 启动 CLI (本窗口, 按当前模式)"
   fi
+  print ""
+  print "  ── Grok (xAI) ────────────────────"
+  print "  [k] 切换模式 (自动 / 强制代理 / 强制直连)"
+  print "  [x] 启动 CLI (本窗口, 按当前模式)"
   print ""
   print "  [0] 探测本机代理端口 (换代理软件后用这个)"
   print ""
@@ -225,6 +234,17 @@ while true; do
       else
         print "未配置 Gemini CLI"; sleep 1
       fi
+      ;;
+    k|K)
+      _psw_set_mode grok "$(next_mode grok)"
+      ;;
+    x|X)
+      print ""
+      print "正在启动 Grok CLI（退出后返回）..."
+      print ""
+      _psw_run_with_marker grok command "$cli_grk"
+      print ""
+      read -r "?Grok CLI 已退出。按回车返回"
       ;;
     9|q|Q) exit 0 ;;
     *) print "无效选项"; sleep 1 ;;

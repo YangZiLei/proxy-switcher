@@ -27,8 +27,8 @@ APP_DIR="$HOME/Applications"
 echo "==> 1/3 复制脚本到 $DST_DIR"
 mkdir -p "$DST_DIR"
 cp "$SRC_DIR/switcher.sh" "$SRC_DIR/launch.sh" "$SRC_DIR/profile.zsh" \
-   "$SRC_DIR/lib.zsh" "$SRC_DIR/open-menu.sh" "$DST_DIR/"
-chmod +x "$DST_DIR/switcher.sh" "$DST_DIR/launch.sh" "$DST_DIR/open-menu.sh"
+   "$SRC_DIR/lib.zsh" "$SRC_DIR/open-menu.sh" "$SRC_DIR/run-grok.sh" "$DST_DIR/"
+chmod +x "$DST_DIR/switcher.sh" "$DST_DIR/launch.sh" "$DST_DIR/open-menu.sh" "$DST_DIR/run-grok.sh"
 
 if [[ -d "$SRC_DIR/assets/icons" ]]; then
   mkdir -p "$DST_DIR/icons"
@@ -99,15 +99,19 @@ RUN
   touch "$app_dir"
   /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f "$app_dir" >/dev/null 2>&1 || true
 
-  # 同时经 NSWorkspace 直接打上 Finder 专属图标（双重保障：即刻生效，无需等待缓存）
-  if [[ -n "$icon_key" && -f "$DST_DIR/icons/$icon_key.png" ]]; then
-    swift - "$app_dir" "$DST_DIR/icons/$icon_key.png" <<'SWIFT' >/dev/null 2>&1 || true
+  # 同时打上 Finder 专属图标（优先使用高速 fileicon，回退使用 swift）
+  if [[ -n "$icon_key" ]]; then
+    if command -v fileicon >/dev/null 2>&1 && [[ -f "$DST_DIR/icons/$icon_key.icns" ]]; then
+      fileicon set "$app_dir" "$DST_DIR/icons/$icon_key.icns" >/dev/null 2>&1 || true
+    elif [[ -f "$DST_DIR/icons/$icon_key.png" ]]; then
+      swift - "$app_dir" "$DST_DIR/icons/$icon_key.png" <<'SWIFT' >/dev/null 2>&1 || true
 import AppKit
 let args = CommandLine.arguments
 if args.count >= 3, let img = NSImage(contentsOfFile: args[2]) {
     NSWorkspace.shared.setIcon(img, forFile: args[1], options: [])
 }
 SWIFT
+    fi
   fi
 
   echo "   ✓ $name.app (原生双击启动，内置专属图标)"
@@ -118,14 +122,18 @@ write_command() { # $1=显示名 $2=要 exec 的命令 $3=图标名(可选)
   local icon_key="${3:-}"
   printf '#!/bin/zsh\nexec %s\n' "$2" > "$dest"
   chmod +x "$dest"
-  if [[ -n "$icon_key" && -f "$DST_DIR/icons/$icon_key.png" ]]; then
-    swift - "$dest" "$DST_DIR/icons/$icon_key.png" <<'SWIFT' >/dev/null 2>&1 || true
+  if [[ -n "$icon_key" ]]; then
+    if command -v fileicon >/dev/null 2>&1 && [[ -f "$DST_DIR/icons/$icon_key.icns" ]]; then
+      fileicon set "$dest" "$DST_DIR/icons/$icon_key.icns" >/dev/null 2>&1 || true
+    elif [[ -f "$DST_DIR/icons/$icon_key.png" ]]; then
+      swift - "$dest" "$DST_DIR/icons/$icon_key.png" <<'SWIFT' >/dev/null 2>&1 || true
 import AppKit
 let args = CommandLine.arguments
 if args.count >= 3, let img = NSImage(contentsOfFile: args[2]) {
     NSWorkspace.shared.setIcon(img, forFile: args[1], options: [])
 }
 SWIFT
+    fi
   fi
   echo "   ✓ $1.command"
 }
@@ -135,18 +143,20 @@ write_app "代理切换" "\"$DST_DIR/open-menu.sh\"" "proxy"
 write_app "OpenCode 代理启动" "\"$DST_DIR/launch.sh\" -q opencode" "opencode"
 write_app "Antigravity 代理启动" "\"$DST_DIR/launch.sh\" -q antigravity" "antigravity"
 write_app "Gemini 代理启动" "\"$DST_DIR/launch.sh\" -q gemini" "gemini"
+write_app "Grok 代理启动" "\"$DST_DIR/open-menu.sh\" \"$DST_DIR/run-grok.sh\"" "grok"
 
 # 2. 生成 .command 兼容脚本
 write_command "代理切换" "\"$DST_DIR/open-menu.sh\"" "proxy"
 write_command "OpenCode 代理启动" "\"$DST_DIR/launch.sh\" -q opencode" "opencode"
 write_command "Antigravity 代理启动" "\"$DST_DIR/launch.sh\" -q antigravity" "antigravity"
 write_command "Gemini 代理启动" "\"$DST_DIR/launch.sh\" -q gemini" "gemini"
+write_command "Grok 代理启动" "\"$DST_DIR/open-menu.sh\" \"$DST_DIR/run-grok.sh\"" "grok"
 
 echo "==> 3/3 ${1:+挂载 zsh 函数}"
 if [[ "$1" == "--with-zshrc" ]]; then
   line=". \"\$HOME/.config/proxy-switcher/profile.zsh\""
   if ! grep -qF "$HOME/.config/proxy-switcher/profile.zsh" "$HOME/.zshrc" 2>/dev/null; then
-    printf '\n# proxy-switcher: per-tool proxy injection (opencode-proxy / agy-proxy / gemini-proxy)\n%s\n' "$line" >> "$HOME/.zshrc"
+    printf '\n# proxy-switcher: per-tool proxy injection (opencode-proxy / agy-proxy / gemini-proxy / grok-proxy)\n%s\n' "$line" >> "$HOME/.zshrc"
     echo "   ✓ 已追加到 ~/.zshrc（新开终端生效）"
   else
     echo "   ~/.zshrc 已包含，跳过"
@@ -163,10 +173,10 @@ qlmanage -r 2>/dev/null || true
 echo ""
 echo "部署完成！"
 echo "  - 菜单（推荐）：双击 $APP_DIR/代理切换.app（直接拉起 Ghostty，零多余终端，可按键选择启动各应用）"
-echo "  - 桌面独立启动：双击 $APP_DIR/Antigravity 代理启动.app / Gemini 代理启动.app / OpenCode 代理启动.app"
-echo "    （原生后台静默注入启动，完全不弹终端黑框，顶部通知栏反馈结果）"
+echo "  - 桌面独立启动：双击 $APP_DIR/Antigravity 代理启动.app / Gemini 代理启动.app / OpenCode 代理启动.app / Grok 代理启动.app"
+echo "    （原生后台静默注入启动桌面端，Grok 直接拉起终端 TUI，顶部通知栏反馈结果）"
 echo "  - 终端命令：在 Ghostty / 终端里直接输入 proxy-switch 或 psw 即可随时呼出菜单"
-echo "  - CLI 函数：opencode-proxy / agy-proxy / gemini-proxy"
+echo "  - CLI 函数：opencode-proxy / agy-proxy / gemini-proxy / grok-proxy"
 echo "  - 兼容脚本：$APP_DIR/*.command"
 echo "  - 启动日志：$DST_DIR/launch.log"
 echo "  - 配置文件：$DST_DIR/config.json"

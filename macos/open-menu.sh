@@ -7,7 +7,7 @@
 
 set -e
 SCRIPT_DIR="${0:A:h}"
-SWITCHER="$SCRIPT_DIR/switcher.sh"
+TARGET="${1:-$SCRIPT_DIR/switcher.sh}"
 
 fail() {
   local msg="$1"
@@ -17,7 +17,7 @@ fail() {
   exit 1
 }
 
-[[ -x "$SWITCHER" ]] || fail "找不到菜单脚本：$SWITCHER。请重新运行 macos/install.sh，或自行运行 ~/.config/proxy-switcher/switcher.sh"
+[[ -x "$TARGET" ]] || fail "找不到脚本：$TARGET。请重新运行 macos/install.sh"
 
 app_exists() {
   local name="$1"
@@ -27,27 +27,27 @@ app_exists() {
 run_open() {
   # "$@" is an `open` argv. Fail visibly if LaunchServices rejects it.
   if ! open "$@"; then
-    fail "无法打开终端。请自行运行：$SWITCHER"
+    fail "无法打开终端。请自行运行：$TARGET"
   fi
 }
 
 if [[ -n "${PROXY_SWITCHER_TERMINAL:-}" ]]; then
   if [[ -x "$PROXY_SWITCHER_TERMINAL" ]]; then
-    "$PROXY_SWITCHER_TERMINAL" -e "$SWITCHER" &
+    "$PROXY_SWITCHER_TERMINAL" -e "$TARGET" &
     exit 0
   fi
-  run_open -na "$PROXY_SWITCHER_TERMINAL" --args -e "$SWITCHER"
+  run_open -na "$PROXY_SWITCHER_TERMINAL" --args -e "$TARGET"
   exit 0
 fi
 
 if app_exists Ghostty; then
-  run_open -na Ghostty --args -e "$SWITCHER"
+  run_open -na Ghostty --args -e "$TARGET"
 elif app_exists iTerm; then
-  run_open -na iTerm "$SWITCHER"
+  run_open -na iTerm "$TARGET"
 elif app_exists kitty; then
-  run_open -na kitty --args -e "$SWITCHER"
+  run_open -na kitty --args -e "$TARGET"
 elif app_exists Terminal; then
-  run_open -a Terminal "$SWITCHER"
+  run_open -a Terminal "$TARGET"
 else
-  fail "未找到可用终端（Ghostty / iTerm / Kitty / Terminal.app）。请自行运行：$SWITCHER"
+  fail "未找到可用终端（Ghostty / iTerm / Kitty / Terminal.app）。请自行运行：$TARGET"
 fi

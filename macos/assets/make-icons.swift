@@ -53,6 +53,15 @@ let configs: [IconConfig] = [
         topColor: NSColor(red: 0.10, green: 0.78, blue: 0.50, alpha: 1.0), // #1AC780
         botColor: NSColor(red: 0.02, green: 0.45, blue: 0.32, alpha: 1.0), // #057352
         accentColor: NSColor(red: 0.35, green: 0.95, blue: 0.70, alpha: 0.35)
+    ),
+    // Grok (xAI) - Deep Carbon / Pitch Black
+    IconConfig(
+        key: "grok",
+        letter: "X",
+        sub: "GROK",
+        topColor: NSColor(red: 0.20, green: 0.20, blue: 0.24, alpha: 1.0), // #33333D
+        botColor: NSColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0), // #14141A
+        accentColor: NSColor(red: 0.90, green: 0.90, blue: 1.0, alpha: 0.35)
     )
 ]
 

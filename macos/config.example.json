@@ -16,6 +16,7 @@
     "opencode": ".opencode-proxy-on",
     "antigravity": ".agy-proxy-on",
     "gemini": ".gemini-proxy-on",
+    "grok": ".grok-proxy-on",
     "comment": "Marker files live under $HOME. Each listed '-on' marker forces proxy for that tool; a sibling '-off' marker (e.g. .opencode-proxy-off) forces direct; with neither present the launcher auto-detects at launch (proxy alive -> inject + notify, else direct)"
   },
   "apps": {
@@ -34,6 +35,10 @@
     "gemini": {
       "desktop": "/Applications/Gemini.app/Contents/MacOS/Gemini",
       "comment": "Google Gemini 官方 macOS 客户端"
+    },
+    "grok": {
+      "cli": "grok",
+      "comment": "xAI Grok Build TUI CLI"
     }
   }
 }

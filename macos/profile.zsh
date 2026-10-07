@@ -5,16 +5,17 @@
 # 在 ~/.zshrc 中添加：
 #   . "$HOME/.config/proxy-switcher/profile.zsh"
 #
-# 提供四个命令：
-#   proxy-switch    打开主菜单（三态模式切换、启动桌面端）
+# 提供常用命令：
+#   proxy-switch / psw / switcher  打开主菜单（三态模式切换、启动应用）
 #   opencode-proxy  按当前模式运行 opencode：自动=探测到代理才注入；
 #                   强制代理=总是注入；强制直连=直连
 #   agy-proxy       同上，运行 agy
 #   gemini-proxy    按当前模式运行 Gemini（桌面端或 CLI）
+#   grok-proxy      按当前模式运行 xAI Grok Build TUI CLI
 #
 # 模式标记在 $HOME 下（由 switcher.sh 切换）：
-#   ~/.opencode-proxy-on / ~/.agy-proxy-on / ~/.gemini-proxy-on   = 强制代理
-#   ~/.opencode-proxy-off / ~/.agy-proxy-off / ~/.gemini-proxy-off = 强制直连
+#   ~/.opencode-proxy-on / ~/.agy-proxy-on / ~/.gemini-proxy-on / ~/.grok-proxy-on   = 强制代理
+#   ~/.opencode-proxy-off / ~/.agy-proxy-off / ~/.gemini-proxy-off / ~/.grok-proxy-off = 强制直连
 #   两者都无 = 自动（探测，代理存活则注入）
 #
 # 只影响当前 shell 中这些函数的子进程，不碰全局环境变量。
@@ -72,4 +73,12 @@ function gemini-proxy() {
     fi
     "$sw" gemini "$@"
   fi
+}
+
+# grok (xAI Grok Build TUI CLI 代理启动)
+function grok-proxy() {
+  local cli
+  cli="$(_psw_config_get "$PROXY_SWITCHER_CONFIG" "apps.grok.cli")"
+  [[ -z "$cli" ]] && cli="grok"
+  _psw_run_with_marker grok command "$cli" "$@"
 }
