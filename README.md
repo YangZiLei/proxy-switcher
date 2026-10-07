@@ -1,10 +1,10 @@
 # proxy-switcher
 
-> 按工具注入进程环境变量，修复 Antigravity / OpenCode 桌面端在代理下白屏，且不污染全局环境。
-> Injects per-tool process environment variables to fix Antigravity / OpenCode desktop white-screen behind a proxy, without touching global env.
+> 按工具注入进程环境变量，修复 Antigravity / OpenCode / Gemini 桌面端在代理下网络连接异常或白屏，且不污染全局环境。
+> Injects per-tool process environment variables to fix Antigravity / OpenCode / Gemini desktop network issues or white-screen behind a proxy, without touching global env.
 >
-> 为 AI 编程工具（opencode / Antigravity）提供**按工具独立**的代理开关，不污染全局环境变量。
-> Per-tool proxy toggle for AI coding tools — with zero global-env pollution.
+> 为 AI 编程工具与助手（opencode / Antigravity / Gemini）提供**按工具独立**的代理开关，不污染全局环境变量。
+> Per-tool proxy toggle for AI tools — with zero global-env pollution.
 >
 > 跨平台：**Windows**（PowerShell 7） + **macOS**（zsh 零依赖）
 
@@ -14,7 +14,7 @@
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/install.sh | sh
-# 想同时获得 CLI 注入函数（opencode-proxy / agy-proxy），加 --with-zshrc：
+# 想同时获得 CLI 注入函数（opencode-proxy / agy-proxy / gemini-proxy），加 --with-zshrc：
 curl -fsSL https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/install.sh | sh -s -- --with-zshrc
 ```
 
@@ -43,6 +43,7 @@ pwsh -File scripts/install.ps1   # 若无 config.json 则从 example 生成（�
 
 - **opencode**：桌面端核心流量走内置 Node 服务（认 `HTTPS_PROXY` 环境变量）；终端 CLI 也是 Node 进程
 - **Antigravity (agy)**：桌面端是 Electron；真正访问 Google API 的是它 spawn 的 `language_server`（Go 进程，**认环境变量**）。Electron UI 只加载本地页面 `https://127.0.0.1:<port>`（端口动态）
+- **Gemini**：macOS 官方桌面端（原生客户端 + 后台守护进程）；网络请求经由注入的代理环境变量直接访问 Google 服务
 
 所以正确的控制面不是"代理软件怎么配"，而是**在启动每个工具时，按需注入环境变量**。
 
@@ -54,23 +55,24 @@ pwsh -File scripts/install.ps1   # 若无 config.json 则从 example 生成（�
 ┌─────────────────┐   写/删标记    ┌──────────────────────┐
 │  switcher (菜单) │ ───────────▶  │ $HOME\.opencode-proxy-on  │
 │                 │               │ $HOME\.agy-proxy-on       │
+│                 │               │ $HOME\.gemini-proxy-on    │
 └─────────────────┘               └──────────────────────┘
                                             │ 启动时读取
                                             ▼
                                   ┌──────────────────────┐
                                   │ 启动器 (launcher)     │
-                                  │ 有标记 → 注入代理环境  │
-                                  │ 无标记 → 原样启动      │
+                                  │ 按模式注入代理环境     │
+                                  │ (强制代理/强制直连/自动)│
                                   └──────────────────────┘
 ```
 
-- **不写全局环境变量**：开关只影响 opencode / antigravity 两个工具，curl、git、npm、浏览器完全不受影响
-- **标记文件在用户主目录**：任何目录下都生效，不污染项目仓库
-- **只影响新进程**：已打开的终端需重启才生效；**桌面端**由启动器在检测到已运行实例时先退出再拉起，使当前标记生效（进程环境变量机制使然）
+- **不写全局环境变量**：开关只影响目标工具（opencode / antigravity / gemini），curl、git、npm、浏览器完全不受影响
+- **标记文件在用户主目录**：任何目录下都生效，不污染项目仓库。macOS 侧为**三态模式**：`…-on` 标记 = 强制代理、`…-off` 标记 = 强制直连、两者皆无 = **自动**（启动时探测，代理存活才注入，并发 macOS 通知反馈）——日常使用无需先进菜单开开关；Windows 侧仍为开/关二态
+- **只影响新进程**：已打开的终端需重启才生效；**桌面端**由启动器在检测到已运行实例时先退出再拉起，使当前模式生效（进程环境变量机制使然）。macOS 双击启动器走 `-q` 静默路径：终端窗口秒关，启动/注入/白屏恢复全部在后台执行，结果经通知反馈，过程写 `~/.config/proxy-switcher/launch.log`
 - **统一注入 `NO_PROXY=127.0.0.1,localhost`**：`HTTPS_PROXY` 注入后必须豁免回环，否则 Electron UI 加载本地页面也会走代理 → 白屏（详见下方"白屏"章节）。默认值如左；两个平台的 `config.json` 都可用 `no_proxy` 键覆盖（缺省时回落到 `127.0.0.1,localhost`）
 - **代理端口自动探测**：开启/启动时先验证 `proxy.url` 是否存活，否则依次尝试**系统代理**（代理软件的"系统代理"开关开着就能读到，Windows 读注册表，macOS 读 `scutil --proxy`），再扫描常见本机 HTTP 端口（7897/7890/7892/7893/7899/7895/10809/2080/2081/8080/20171/20172）。换代理软件通常**零改配置**；菜单顶部会显示实际注入的地址与来源（config/system/probe/marker）。换软件后也可用菜单 **[0] 探测本机代理端口**手动确认并写回 `config.json`。可选配置：`proxy.auto_detect`（默认 true，设 false 则回到写死行为）、`proxy.candidates`（完整 URL 数组）、`proxy.candidate_ports`（端口数组）
-- **代理变量集合**：标记开启时注入 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `NO_PROXY` / `no_proxy`（Windows 与 macOS 相同）
-- **CLI 注入只作用于子进程**：`opencode-proxy` / `agy-proxy` 用临时环境前缀（zsh）/ try+finally 清理（PowerShell）注入，命令退出后当前终端不会残留代理变量
+- **代理变量集合**：注入 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `https_proxy` / `http_proxy` / `all_proxy` / `NO_PROXY` / `no_proxy`（大小写兼顾，保证兼容各类网络运行时与底层类库）
+- **CLI 注入只作用于子进程**：`opencode-proxy` / `agy-proxy` / `gemini-proxy` 用临时环境前缀（zsh）/ try+finally 清理（PowerShell）注入，命令退出后当前终端不会残留代理变量
 
 ## 平台差异 / Platform differences
 
@@ -81,7 +83,7 @@ pwsh -File scripts/install.ps1   # 若无 config.json 则从 example 生成（�
 | 运行时 | PowerShell 7（`pwsh`）+ `.bat` | zsh 脚本（零依赖，无需安装任何东西） |
 | 菜单入口 | `switcher.bat`（双击） | `macos/install.sh` 生成 `代理切换.command`（双击；自动选 Ghostty / iTerm / Kitty / Terminal.app） |
 | CLI 注入 | `profile/profile-functions.ps1` → `opencode-proxy`/`agy-proxy`（CLI 路径来自 `config.json` / PATH） | `macos/profile.zsh` → `opencode-proxy`/`agy-proxy` |
-| 桌面端启动 | `Start-Process`（子进程继承环境变量）；菜单 [5]/[6] 调用 `launchers/launch.ps1`，**按标记**注入（不强制开标记） | 直接 exec bundle 内二进制（`open -a` 不传 env），注入后 spawn 的 `language_server` 继承 |
+| 桌面端启动 | `Start-Process`（子进程继承环境变量）；菜单 [5]/[6] 调用 `launchers/launch.ps1`，**按标记**注入（不强制开标记） | 直接 exec bundle 内二进制（`open -a` 不传 env），注入后 spawn 的 `language_server` 继承；双击 `.command` 走 `-q` 静默后台路径（终端秒关，通知 + 日志反馈） |
 | 单实例 | 启动器按桌面 exe 路径找主进程（排除 `--type=` 的 Helper），退出并等待后再拉起 | 按 argv[0] 精确匹配主进程，退出并等待（最长 12s + SIGKILL）后再拉起 |
 | 白屏根因 | 代理未就绪时 Chromium 把本地页面也走代理 + 防火墙拦回环 | **language_server 启动要 ~37s**，Electron 过早加载本地页 30s 超时定格 |
 | 白屏修复 | 注入 `NO_PROXY` 豁免回环 + `scripts/firewall-fix.ps1` 防火墙放行 | `--no-proxy-server` + 启动器经 CDP 自动重载窗口（`recoverWhiteScreen`；缺 Node 时提示并跳过） |
@@ -142,25 +144,41 @@ cd macos
 `install.sh` 会：
 1. 复制 `switcher.sh` / `launch.sh` / `profile.zsh` / `lib.zsh` / `open-menu.sh` 到 `~/.config/proxy-switcher/`
 2. 生成 `config.json`（首次，按需改代理地址；默认 `http://127.0.0.1:7892`）
-3. 生成三个双击启动器（`.command` 文件）到 `~/Applications/`：
+3. 生成四个双击启动器（`.command` 文件）到 `~/Applications/`：
    - **代理切换.command**（自动选择 Ghostty / iTerm / Kitty / Terminal.app 打开主菜单）
-   - **OpenCode 代理启动.command**
-   - **Antigravity 代理启动.command**
-4. （可选）把 `profile.zsh` 追加进 `~/.zshrc`
+   - **OpenCode 代理启动.command**（静默后台启动：终端秒关，通知反馈）
+   - **Antigravity 代理启动.command**（同上，含白屏自动恢复）
+   - **Gemini 代理启动.command**（同上，静默后台启动与通知反馈）
+4. （可选）把 `profile.zsh` 追加进 `~/.zshrc`（提供 `opencode-proxy` / `agy-proxy` / `gemini-proxy`）
 
-> 菜单应用按顺序检测终端，也可用环境变量 `PROXY_SWITCHER_TERMINAL` 覆盖（可执行文件路径，或传给 `open -na` 的应用名）。找不到终端时会弹出对话框，提示自行运行 `~/.config/proxy-switcher/switcher.sh`。桌面启动器若 `launch.sh` 失败也会弹出对话框，而不是静默失败。
+> 菜单应用按顺序检测终端，也可用环境变量 `PROXY_SWITCHER_TERMINAL` 覆盖（可执行文件路径，或传给 `open -na` 的应用名）。找不到终端时会弹出对话框，提示自行运行 `~/.config/proxy-switcher/switcher.sh`。桌面启动器若在后台启动失败也会发通知（日志见 `~/.config/proxy-switcher/launch.log`）。
 >
 > 为什么是 `.command` 而不是 `.app`：早期版本用 AppleScript applet（`.app`）包装启动命令，但 applet 是 ad-hoc 签名、无稳定 Bundle ID，每次重建签名一变，macOS TCC 就当成新应用反复弹窗要"下载/图片等文件夹"访问权限；且子进程（Antigravity 本体等）的文件访问也会归因到 applet 头上。`.command` 以终端身份直接执行，沿用终端已有的授权，不再弹窗。
 
-### 使用
+### 使用（日常：双击即走）
+
+双击桌面启动器后**不需要先开代理开关**——启动器按三态模式自动处理，结果经 macOS 通知反馈：
 
 | 场景 | 操作 |
 |------|------|
-| 开关代理 | 双击 `代理切换.command`（或 `~/.config/proxy-switcher/switcher.sh`）；菜单与 Windows 相同：奇数 opencode、偶数 Antigravity，`[1]/[2]` 开、`[3]/[4]` 关 |
-| Antigravity CLI | 新终端 `agy-proxy ...` |
+| Antigravity 桌面端 | 双击 `Antigravity 代理启动.command`（自动探测 + 注入 + 白屏恢复，全程后台） |
+| OpenCode 桌面端 | 双击 `OpenCode 代理启动.command`（自动探测 + 注入，全程后台） |
+| Gemini 桌面端 | 双击 `Gemini 代理启动.command`（自动探测 + 注入，全程后台） |
+| Antigravity CLI | 新终端 `agy-proxy ...`（自动模式下探测到代理才注入） |
 | opencode CLI | 新终端 `opencode-proxy ...` |
-| Antigravity 桌面端 | 双击 `Antigravity 代理启动.command`（自动注入 + 白屏恢复） |
-| OpenCode 桌面端 | 双击 `OpenCode 代理启动.command` |
+| Gemini CLI / 启动 | 新终端 `gemini-proxy ...` |
+
+三种模式（菜单里切换，或直接增删 `$HOME` 下的标记文件）：
+
+| 模式 | 行为 | 标记 |
+|------|------|------|
+| **自动**（默认） | 启动时探测：代理存活 → 注入并通知；不存活 → 直连并通知 | 无标记 |
+| 强制代理 | 总是注入（标记里存的地址失效时自动改用探测结果） | `…-on` |
+| 强制直连 | 绝不注入 | `…-off` |
+
+### 菜单（高级）
+
+双击 `代理切换.command`（或 `~/.config/proxy-switcher/switcher.sh`）。`[1]/[2]/[3]` 分别在 自动 → 强制代理 → 强制直连 间循环切换（1=OpenCode, 2=Antigravity, 3=Gemini），`[4]/[5]/[6]` 启动桌面端（4=Gemini, 5=OpenCode, 6=Antigravity），`[7]/[8]` 启动 CLI，`[0]` 探测代理端口并写回 `config.json`。
 
 ### macOS 白屏（重点）
 
@@ -182,7 +200,7 @@ electron: Failed to load URL: https://127.0.0.1:<port>/ with error: ERR_TIMED_OU
 
 **白屏仍在？**：等 LS 就绪后按 `Cmd+R` 手动重载；或确认代理客户端端口与 `config.json` 的 `proxy.url` 一致。
 
-> **单实例说明**：Electron 是单实例——同一应用二次启动会把请求转发给旧进程后退出。Windows 与 macOS 启动器都会在应用已运行时先退出旧实例再按当前标记拉起，所以切换代理开关后再次启动即生效。
+> **单实例说明**：Electron 是单实例——同一应用二次启动会把请求转发给旧进程后退出。Windows 与 macOS 启动器都会在应用已运行时先退出旧实例再按当前模式拉起，所以切换模式后再次启动即生效。
 
 ---
 
@@ -202,7 +220,7 @@ proxy-switcher/
 ├── profile/
 │   └── profile-functions.ps1       # Windows CLI 注入函数（opencode-proxy / agy-proxy）
 ├── macos/
-│   ├── install.sh                  # macOS 一键安装（生成 .app + 图标）
+│   ├── install.sh                  # macOS 一键安装（生成 .command 启动器）
 │   ├── lib.zsh                     # macOS 共用：读配置 / 按标记注入
 │   ├── switcher.sh                 # macOS 主菜单（zsh）
 │   ├── launch.sh                   # macOS 桌面启动器（注入 + 白屏恢复）

@@ -3,13 +3,13 @@
 # proxy-switcher — one-line installer (top-level entry)
 #
 # 统一入口:检测平台后调用各平台已有安装器,并打印验证方式。
-#   macOS   → macos/install.sh    (生成 .app + 图标 + 可选挂载 zsh 函数)
+#   macOS   → macos/install.sh    (生成 .command 启动器 + 可选挂载 zsh 函数)
 #   Windows → scripts/install.ps1 (生成 config.json + 开始菜单快捷方式)
 #
 # 用法:
 #   仓库内:
 #     ./install.sh                     # macOS 默认安装
-#     ./install.sh --with-zshrc        # macOS + 挂载 opencode-proxy/agy-proxy 到 ~/.zshrc
+#     ./install.sh --with-zshrc        # macOS + 挂载 opencode-proxy/agy-proxy/gemini-proxy 到 ~/.zshrc
 #
 #   发布后(curl | sh 管道模式,仅 macOS;可用 PROXY_SWITCHER_REPO_URL 覆盖):
 #     curl -fsSL https://raw.githubusercontent.com/YangZiLei/proxy-switcher/main/install.sh | sh
@@ -49,13 +49,13 @@ print_verify() {
   echo "  --------------------------------------------------"
   case "$platform" in
     macos)
-      echo "  1. 双击 ~/Applications/代理切换.app（或跑 ~/.config/proxy-switcher/switcher.sh）"
-      echo "  2. 双击 OpenCode / Antigravity 代理启动.app 启动桌面端"
+      echo "  1. 双击 ~/Applications/代理切换.command（或跑 ~/.config/proxy-switcher/switcher.sh）"
+      echo "  2. 双击 OpenCode / Antigravity / Gemini 代理启动.command 启动桌面端"
       if [ "$with_zshrc" -eq 1 ]; then
-        echo "  3. 新开一个终端，执行  type opencode-proxy  和  type agy-proxy"
+        echo "  3. 新开一个终端，执行  type opencode-proxy、type agy-proxy 或 type gemini-proxy"
         echo "     —— 应显示为函数定义(而非 'command not found')"
       else
-        echo "  3. CLI 函数未挂载。若需要 opencode-proxy / agy-proxy，请再跑："
+        echo "  3. CLI 函数未挂载。若需要 opencode-proxy / agy-proxy / gemini-proxy，请再跑："
         echo "       ./install.sh --with-zshrc"
       fi
       ;;
