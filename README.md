@@ -56,6 +56,7 @@ pwsh -File scripts/install.ps1   # 若无 config.json 则从 example 生成（�
 │  switcher (菜单) │ ───────────▶  │ $HOME\.opencode-proxy-on  │
 │                 │               │ $HOME\.agy-proxy-on       │
 │                 │               │ $HOME\.gemini-proxy-on    │
+│                 │               │ $HOME\.grok-proxy-on      │
 └─────────────────┘               └──────────────────────┘
                                             │ 启动时读取
                                             ▼
@@ -66,13 +67,13 @@ pwsh -File scripts/install.ps1   # 若无 config.json 则从 example 生成（�
                                   └──────────────────────┘
 ```
 
-- **不写全局环境变量**：开关只影响目标工具（opencode / antigravity / gemini），curl、git、npm、浏览器完全不受影响
+- **不写全局环境变量**：开关只影响目标工具（opencode / antigravity / gemini / grok），curl、git、npm、浏览器完全不受影响
 - **标记文件在用户主目录**：任何目录下都生效，不污染项目仓库。macOS 侧为**三态模式**：`…-on` 标记 = 强制代理、`…-off` 标记 = 强制直连、两者皆无 = **自动**（启动时探测，代理存活才注入，并发 macOS 通知反馈）——日常使用无需先进菜单开开关；Windows 侧仍为开/关二态
 - **只影响新进程**：已打开的终端需重启才生效；**桌面端**由启动器在检测到已运行实例时先退出再拉起，使当前模式生效（进程环境变量机制使然）。macOS 双击启动器走 `-q` 静默路径：终端窗口秒关，启动/注入/白屏恢复全部在后台执行，结果经通知反馈，过程写 `~/.config/proxy-switcher/launch.log`
 - **统一注入 `NO_PROXY=127.0.0.1,localhost`**：`HTTPS_PROXY` 注入后必须豁免回环，否则 Electron UI 加载本地页面也会走代理 → 白屏（详见下方"白屏"章节）。默认值如左；两个平台的 `config.json` 都可用 `no_proxy` 键覆盖（缺省时回落到 `127.0.0.1,localhost`）
 - **代理端口自动探测**：开启/启动时先验证 `proxy.url` 是否存活，否则依次尝试**系统代理**（代理软件的"系统代理"开关开着就能读到，Windows 读注册表，macOS 读 `scutil --proxy`），再扫描常见本机 HTTP 端口（7897/7890/7892/7893/7899/7895/10809/2080/2081/8080/20171/20172）。换代理软件通常**零改配置**；菜单顶部会显示实际注入的地址与来源（config/system/probe/marker）。换软件后也可用菜单 **[0] 探测本机代理端口**手动确认并写回 `config.json`。可选配置：`proxy.auto_detect`（默认 true，设 false 则回到写死行为）、`proxy.candidates`（完整 URL 数组）、`proxy.candidate_ports`（端口数组）
 - **代理变量集合**：注入 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` / `https_proxy` / `http_proxy` / `all_proxy` / `NO_PROXY` / `no_proxy`（大小写兼顾，保证兼容各类网络运行时与底层类库）
-- **CLI 注入只作用于子进程**：`opencode-proxy` / `agy-proxy` / `gemini-proxy` 用临时环境前缀（zsh）/ try+finally 清理（PowerShell）注入，命令退出后当前终端不会残留代理变量
+- **CLI 注入只作用于子进程**：`opencode-proxy` / `agy-proxy` / `gemini-proxy` / `grok-proxy` 用临时环境前缀（zsh）/ try+finally 清理（PowerShell）注入，命令退出后当前终端不会残留代理变量
 
 ## 平台差异 / Platform differences
 
@@ -147,13 +148,13 @@ cd macos
 3. 生成四个双击启动器（`.command` 文件）到 `~/Applications/`：
    - **代理切换.command**（自动选择 Ghostty / iTerm / Kitty / Terminal.app 打开主菜单）
    - **OpenCode 代理启动.command**（静默后台启动：终端秒关，通知反馈）
-   - **Antigravity 代理启动.command**（同上，含白屏自动恢复）
-   - **Gemini 代理启动.command**（同上，静默后台启动与通知反馈）
-4. （可选）把 `profile.zsh` 追加进 `~/.zshrc`（提供 `opencode-proxy` / `agy-proxy` / `gemini-proxy`）
+   - **Antigravity 代理启动.app / .command**（同上，含白屏自动恢复）
+   - **Gemini 代理启动.app / .command**（同上，静默后台启动与通知反馈）
+   - **Grok 代理启动.app / .command**（直接拉起 Ghostty/终端运行 xAI Grok Build TUI）
+4. （可选）把 `profile.zsh` 追加进 `~/.zshrc`（提供 `opencode-proxy` / `agy-proxy` / `gemini-proxy` / `grok-proxy` 以及快捷命令 `psw`）
 
-> 菜单应用按顺序检测终端，也可用环境变量 `PROXY_SWITCHER_TERMINAL` 覆盖（可执行文件路径，或传给 `open -na` 的应用名）。找不到终端时会弹出对话框，提示自行运行 `~/.config/proxy-switcher/switcher.sh`。桌面启动器若在后台启动失败也会发通知（日志见 `~/.config/proxy-switcher/launch.log`）。
->
-> 为什么是 `.command` 而不是 `.app`：早期版本用 AppleScript applet（`.app`）包装启动命令，但 applet 是 ad-hoc 签名、无稳定 Bundle ID，每次重建签名一变，macOS TCC 就当成新应用反复弹窗要"下载/图片等文件夹"访问权限；且子进程（Antigravity 本体等）的文件访问也会归因到 applet 头上。`.command` 以终端身份直接执行，沿用终端已有的授权，不再弹窗。
+> 菜单应用按顺序检测终端，优先使用 Ghostty（也可用环境变量 `PROXY_SWITCHER_TERMINAL` 覆盖）。
+> 启动器现为 macOS 原生 `.app` Bundle（`LSUIElement=true`），双击后**零多余终端弹窗**，直接秒开目标终端或后台静默拉起应用。
 
 ### 使用（日常：双击即走）
 
@@ -161,9 +162,10 @@ cd macos
 
 | 场景 | 操作 |
 |------|------|
-| Antigravity 桌面端 | 双击 `Antigravity 代理启动.command`（自动探测 + 注入 + 白屏恢复，全程后台） |
-| OpenCode 桌面端 | 双击 `OpenCode 代理启动.command`（自动探测 + 注入，全程后台） |
-| Gemini 桌面端 | 双击 `Gemini 代理启动.command`（自动探测 + 注入，全程后台） |
+| Antigravity 桌面端 | 双击 `Antigravity 代理启动.app`（自动探测 + 注入 + 白屏恢复，全程后台） |
+| OpenCode 桌面端 | 双击 `OpenCode 代理启动.app`（自动探测 + 注入，全程后台） |
+| Gemini 桌面端 | 双击 `Gemini 代理启动.app`（自动探测 + 注入，全程后台） |
+| Grok CLI / TUI | 双击 `Grok 代理启动.app` 或终端运行 `grok-proxy` |
 | Antigravity CLI | 新终端 `agy-proxy ...`（自动模式下探测到代理才注入） |
 | opencode CLI | 新终端 `opencode-proxy ...` |
 | Gemini CLI / 启动 | 新终端 `gemini-proxy ...` |
@@ -178,7 +180,7 @@ cd macos
 
 ### 菜单（高级）
 
-双击 `代理切换.command`（或 `~/.config/proxy-switcher/switcher.sh`）。`[1]/[2]/[3]` 分别在 自动 → 强制代理 → 强制直连 间循环切换（1=OpenCode, 2=Antigravity, 3=Gemini），`[4]/[5]/[6]` 启动桌面端（4=Gemini, 5=OpenCode, 6=Antigravity），`[7]/[8]` 启动 CLI，`[0]` 探测代理端口并写回 `config.json`。
+双击 `代理切换.app`（或终端运行 `psw` / `proxy-switch`）。`[1]/[2]/[3]/[k]` 分别在 自动 → 强制代理 → 强制直连 间循环切换（1=OpenCode, 2=Antigravity, 3=Gemini, k=Grok），`[4]/[5]/[6]` 启动桌面端（4=Gemini, 5=OpenCode, 6=Antigravity），`[7]/[8]/[g]/[x]` 启动 CLI（7=OpenCode, 8=Antigravity, g=Gemini, x=Grok），`[0]` 探测代理端口并写回 `config.json`，`[9/q]` 退出。
 
 ### macOS 白屏（重点）
 

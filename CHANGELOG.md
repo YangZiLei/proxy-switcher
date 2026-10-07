@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Grok CLI (xAI Grok Build TUI) 支持**:
+  - 新增 `grok-proxy` 命令行包装，按当前模式（自动探测 / 强制代理 / 强制直连）自动注入代理环境后拉起 xAI Grok；
+  - 生成 `~/Applications/Grok 代理启动.app` 与 `Grok 代理启动.command` 双击启动器，直接拉起 Ghostty/终端运行 Grok；
+  - 主菜单 `switcher.sh` 增加 Grok 状态监控、`[k]` 模式轮转与 `[x]` 在当前窗口直接启动 Grok CLI；
+  - 标记体系扩充 `.grok-proxy-on` 与 `.grok-proxy-off`，Windows 脚本亦同步支持 `grok` 校验；
+  - 为 Grok 定制深空碳黑（Pitch Black）+ 白色极简 `X` + `GROK` 专属高清图标。
+- **macOS 原生 `.app` 启动器与专属配色首字母图标**:
+  - 全新生成原生 `.app` Bundle（`LSUIElement=true`），彻底解决双击 `.command` 强制弹系统 Terminal 终端黑框的问题，实现直接唤起 Ghostty 或纯静默后台启动；
+  - Swift 原生动态渲染符合 Apple 官方规范的 Squircle 高清 Retina 图标（16×16 至 1024×1024 .icns + .png），各工具专属配色与字母：
+    - `代理切换.app`：紫罗兰渐变 + `P` (`PROXY`)
+    - `Antigravity 代理启动.app`：电光青蓝渐变 + `A` (`ANTIGRAVITY`)
+    - `Gemini 代理启动.app`：星云粉紫极光渐变 + `G` (`GEMINI`)
+    - `OpenCode 代理启动.app`：极客翡翠绿渐变 + `O` (`OPENCODE`)
+    - `Grok 代理启动.app`：深空碳黑极简 + `X` (`GROK`)
+  - 双重注入机制：同时写入 Bundle 内置 `AppIcon.icns` 与 Cocoa `NSWorkspace` 元数据，配合 LaunchServices 即刻生效。
 - **Gemini.app 官方桌面端支持与启动无限 Loading 修复**:
   - **无限 Loading 根因修复**：
     1. Gemini 原生二进制内的 libcurl（`curl_api.cc`）在未显式传代理时硬编码了 `curl_easy_setopt(curl, CURLOPT_NOPROXY, "*")`，导致其 OAuth 访问令牌刷新（`https://www.googleapis.com/oauth2/token`）强制直连并在超时 3000ms 后报 `Remapped curl code 28 to 86`，致使客户端永驻加载转圈；通过热补丁置空该硬编码并重签名，彻底恢复其代理能力；
