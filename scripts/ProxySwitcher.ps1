@@ -21,7 +21,7 @@ function Get-ProxySwitcherConfig {
 function Get-ProxySwitcherMarkerPath {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('opencode', 'antigravity')]
+        [ValidateSet('opencode', 'antigravity', 'gemini')]
         [string]$App
     )
     $cfg = Get-ProxySwitcherConfig

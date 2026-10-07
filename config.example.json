@@ -11,6 +11,7 @@
   "markers": {
     "opencode": ".opencode-proxy-on",
     "antigravity": ".agy-proxy-on",
+    "gemini": ".gemini-proxy-on",
     "comment": "Marker files live under %USERPROFILE% and toggle proxy per tool"
   },
   "apps": {
@@ -23,6 +24,10 @@
       "desktop": "%LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe",
       "cli": "agy",
       "comment": "Antigravity desktop is Electron; its language_server subprocess honors HTTPS_PROXY"
+    },
+    "gemini": {
+      "desktop": "%LOCALAPPDATA%\\Programs\\Gemini\\Gemini.exe",
+      "comment": "Google Gemini 桌面客户端"
     }
   }
 }
