@@ -37,7 +37,7 @@ function Get-ResolvedProxyForMenu {
 
 function Enable-ProxySwitcherMarker {
     param(
-        [ValidateSet('opencode', 'antigravity', 'gemini')][string]$App,
+        [ValidateSet('opencode', 'antigravity', 'gemini', 'grok')][string]$App,
         [string]$MarkerPath
     )
     $r = Get-ResolvedProxyForMenu

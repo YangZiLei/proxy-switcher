@@ -28,7 +28,7 @@
 
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('opencode', 'antigravity', 'gemini')]
+    [ValidateSet('opencode', 'antigravity', 'gemini', 'grok')]
     [string]$App,
 
     [Parameter(Mandatory = $true)]

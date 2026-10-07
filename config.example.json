@@ -12,6 +12,7 @@
     "opencode": ".opencode-proxy-on",
     "antigravity": ".agy-proxy-on",
     "gemini": ".gemini-proxy-on",
+    "grok": ".grok-proxy-on",
     "comment": "Marker files live under %USERPROFILE% and toggle proxy per tool"
   },
   "apps": {
@@ -28,6 +29,10 @@
     "gemini": {
       "desktop": "%LOCALAPPDATA%\\Programs\\Gemini\\Gemini.exe",
       "comment": "Google Gemini 桌面客户端"
+    },
+    "grok": {
+      "cli": "grok",
+      "comment": "xAI Grok Build TUI CLI"
     }
   }
 }
