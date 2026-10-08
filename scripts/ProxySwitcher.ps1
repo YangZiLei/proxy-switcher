@@ -27,7 +27,15 @@ function Get-ProxySwitcherMarkerPath {
     $cfg = Get-ProxySwitcherConfig
     $name = $cfg.markers.$App
     if ([string]::IsNullOrWhiteSpace($name)) {
-        throw "config.json missing markers.$App"
+        # 老配置里没有新工具的 markers 键；沿用 .<app>-proxy-on 约定兜底，
+        # 与 macos/lib.zsh 的 marker_gem/marker_grk 默认值行为一致，
+        # 避免升级后整个菜单因缺键而无法启动。
+        $name = switch ($App) {
+            'opencode'    { '.opencode-proxy-on' }
+            'antigravity' { '.agy-proxy-on' }
+            'gemini'      { '.gemini-proxy-on' }
+            'grok'        { '.grok-proxy-on' }
+        }
     }
     Join-Path $env:USERPROFILE $name
 }
@@ -208,7 +216,7 @@ function Find-ProxySwitcherAvailable {
 function Get-ProxySwitcherEffectiveProxyUrl {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('opencode', 'antigravity')]
+        [ValidateSet('opencode', 'antigravity', 'gemini', 'grok')]
         [string]$App
     )
     $cfg = Get-ProxySwitcherConfig
@@ -274,7 +282,7 @@ function Invoke-WithProxySwitcherEnv {
 function Invoke-ProxySwitcherCommand {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('opencode', 'antigravity')]
+        [ValidateSet('opencode', 'antigravity', 'gemini', 'grok')]
         [string]$App,
         [Parameter(Mandatory = $true)]
         [string]$CommandPath,
@@ -298,7 +306,7 @@ function Invoke-ProxySwitcherCommand {
 function Resolve-ProxySwitcherCli {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('opencode', 'antigravity')]
+        [ValidateSet('opencode', 'antigravity', 'gemini', 'grok')]
         [string]$App
     )
     $cfg = Get-ProxySwitcherConfig
