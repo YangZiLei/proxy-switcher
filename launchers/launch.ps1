@@ -50,10 +50,17 @@ $marker = Get-ProxySwitcherMarkerPath -App $App
 function Get-DesktopMainProcessId {
     param([string]$ExePath)
     $full = [System.IO.Path]::GetFullPath($ExePath)
+    # Match the whole install directory, not a single file. Self-updating apps
+    # ship a root stub that launches a versioned subfolder (Google Gemini runs
+    # ...\Google\Gemini\app-<version>\Gemini.exe while config records
+    # ...\Google\Gemini\Gemini.exe), so an exact ExecutablePath match finds
+    # nothing, the old instance survives, and the new proxy env is discarded
+    # when the single-instance lock hands off to it.
+    $root = [System.IO.Path]::GetDirectoryName($full)
     Get-CimInstance -ClassName Win32_Process |
         Where-Object {
             $_.ExecutablePath -and
-            [string]::Equals($_.ExecutablePath, $full, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $_.ExecutablePath.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase) -and
             $_.CommandLine -and
             ($_.CommandLine -notmatch '--type=')
         } |
@@ -67,7 +74,12 @@ function Stop-DesktopInstance {
     Write-Host "Stopping running instance so the new env takes effect..."
     foreach ($id in $ids) {
         $gp = Get-Process -Id $id -ErrorAction SilentlyContinue
-        if ($gp) { $null = $gp.CloseMainWindow() }
+        # A windowless helper (Gemini ships GeminiAppLauncher.exe as a tray/
+        # hotkey daemon) can never answer CloseMainWindow, so waiting out the
+        # full 12s for it only to force-kill is wasted time. Ask politely only
+        # for processes that actually own a window.
+        if ($gp -and $gp.MainWindowHandle -ne 0) { $null = $gp.CloseMainWindow() }
+        elseif ($gp) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
     }
     $waited = 0
     while ($waited -lt 12) {

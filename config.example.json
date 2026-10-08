@@ -27,7 +27,7 @@
       "comment": "Antigravity desktop is Electron; its language_server subprocess honors HTTPS_PROXY"
     },
     "gemini": {
-      "desktop": "%LOCALAPPDATA%\\Programs\\Gemini\\Gemini.exe",
+      "desktop": "%LOCALAPPDATA%\\Google\\Gemini\\Gemini.exe",
       "comment": "Google Gemini 桌面客户端"
     },
     "grok": {
