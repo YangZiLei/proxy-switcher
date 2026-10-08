@@ -14,3 +14,4 @@ Desktop.ini
 # local assistant workspace data (never publish)
 .workbuddy/
 .pi-glla/
+.cortexkit/
